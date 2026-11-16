@@ -109,7 +109,7 @@ const copy: Record<Language, PageCopy> = {
     title: pageTitle,
     content: "Conteúdo do portfólio",
     about: "Sobre renato0x",
-    bio: "Sou Renato, Tenho 18 anos e curso Análise e Desenvolvimento de Sistemas no IFNMG, em Montes Claros. Já estou no meu terceiro curso na área de desenvolvimento de sistemas. Desde cedo, sou curioso sobre tecnologia e sempre quis entender como as coisas funcionam. Aprendi muito na prática: fuçando computadores, experimentando programação e seguindo cada dúvida até encontrar uma resposta. Ainda estou descobrindo meu espaço na área, mas gosto justamente desse processo — testar, errar e, aos poucos, entender o que acontece por trás da tela.",
+    bio: "Sou Renato, Tenho 18 anos e curso Análise e Desenvolvimento de Sistemas no IFNMG, em Montes Claros. Em desenvolvimento de sistemas, estou no meu terceiro curso. Desde cedo, sou curioso sobre tecnologia e sempre quis entender como as coisas funcionam. Aprendi muito na prática: fuçando computadores, experimentando programação e seguindo cada dúvida até encontrar uma resposta. Ainda estou descobrindo meu espaço na área, mas gosto justamente desse processo — testar, errar e, aos poucos, entender o que acontece por trás da tela.",
     bioHighlights: [
       { term: "IFNMG", description: "Instituto Federal do Norte de Minas Gerais" },
       { term: "desenvolvimento de sistemas", description: "conclusão em 2028" },
