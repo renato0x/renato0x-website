@@ -305,7 +305,8 @@ async function getAuthorCommitCount(projectName: ProjectName, signal: AbortSigna
   return count;
 }
 
-type ThemeWave = { x: number; y: number; radius: number; startedAt: number };
+type ThemeWave = { x: number; y: number; radius: number; startedAt: number; reveal?: Animation };
+type ThemeReveal = { x: number; y: number; radiusSquared: number };
 const themeRevealDuration = 700;
 const introStyle = Object.fromEntries(Object.entries(introTiming).map(([key, value]) => [`--intro-${key}`, `${value}ms`])) as CSSProperties;
 
@@ -361,7 +362,9 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       { selector: ".preference-switch", strength: 0.83, feather: 28 },
       { selector: ".portfolio-status-meta, .portfolio-status a", strength: 0.82, feather: 16 },
     ];
-    let contentMaskZones: Array<{ left: number; top: number; right: number; bottom: number; strength: number; feather: number }> = [];
+    type MaskZone = { left: number; top: number; right: number; bottom: number; strength: number; feather: number };
+    const maskBandHeight = 48;
+    const contentMaskBands = new Map<number, MaskZone[]>();
     let time = 0;
     let stormElapsed = 0;
     const nextStormInterval = () => 5_500 + Math.random() * 4_500;
@@ -374,6 +377,8 @@ function AsciiField({ wave, repaint, onIntroStep }: {
     let frame = 0;
     let width = 0;
     let height = 0;
+    let canvasRatio = 0;
+    let canvasBounds = canvas.getBoundingClientRect();
     let lastFrameTime = 0;
     let reduceMotion = motionQuery.matches;
     let finePointer = hoverQuery.matches;
@@ -429,27 +434,41 @@ function AsciiField({ wave, repaint, onIntroStep }: {
     };
 
     const refreshContentMask = () => {
-      const canvasBounds = canvas.getBoundingClientRect();
+      canvasBounds = canvas.getBoundingClientRect();
       const compact = compactQuery.matches;
-      contentMaskZones = maskTargets.flatMap((target) => Array.from(document.querySelectorAll<HTMLElement>(target.selector)).map((element) => {
-        const bounds = element.getBoundingClientRect();
-        return {
-          left: bounds.left - canvasBounds.left,
-          top: bounds.top - canvasBounds.top,
-          right: bounds.right - canvasBounds.left,
-          bottom: bounds.bottom - canvasBounds.top,
-          strength: target.strength,
-          feather: compact ? Math.min(target.feather, 9) : target.feather,
-        };
-      }));
+      contentMaskBands.clear();
+      for (const { selector, strength, feather } of maskTargets) {
+        for (const element of document.querySelectorAll<HTMLElement>(selector)) {
+          const bounds = element.getBoundingClientRect();
+          const zone = {
+            left: bounds.left - canvasBounds.left,
+            top: bounds.top - canvasBounds.top,
+            right: bounds.right - canvasBounds.left,
+            bottom: bounds.bottom - canvasBounds.top,
+            strength,
+            feather: compact ? Math.min(feather, 9) : feather,
+          };
+          const firstBand = Math.floor((zone.top - zone.feather) / maskBandHeight);
+          const lastBand = Math.floor((zone.bottom + zone.feather) / maskBandHeight);
+          for (let band = firstBand; band <= lastBand; band += 1) {
+            const zones = contentMaskBands.get(band);
+            if (zones) zones.push(zone);
+            else contentMaskBands.set(band, [zone]);
+          }
+        }
+      }
     };
 
     const contentMask = (x: number, y: number) => {
+      const zones = contentMaskBands.get(Math.floor(y / maskBandHeight));
+      if (!zones) return 1;
       let visibility = 1;
-      for (const zone of contentMaskZones) {
+      for (const zone of zones) {
         const outsideX = x < zone.left ? zone.left - x : x > zone.right ? x - zone.right : 0;
+        if (outsideX >= zone.feather) continue;
         const outsideY = y < zone.top ? zone.top - y : y > zone.bottom ? y - zone.bottom : 0;
-        const distance = Math.hypot(outsideX, outsideY);
+        if (outsideY >= zone.feather) continue;
+        const distance = Math.sqrt(outsideX * outsideX + outsideY * outsideY);
         if (distance >= zone.feather) continue;
 
         const influence = 1 - smoothStep(distance / zone.feather);
@@ -493,14 +512,37 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       return bank * 0.56 + lobes * 0.27 + grain * 0.17;
     };
 
-    const getStormFront = (nx: number, ny: number, flow: number, crossFlow: number) => {
+    const getStormFront = (nx: number, ny: number, flow: number, crossPhase: number, filamentPhase: number) => {
       if (reduceMotion) return 0;
 
       const primary = (Math.sin(nx * 3.1 + ny * 1.6 - flow) + 1) * 0.5;
-      const cross = (Math.sin(nx * -1.8 + ny * 4.8 + crossFlow + Math.sin(flow) * 0.58) + 1) * 0.5;
-      const filaments = (Math.sin(nx * 7.2 - ny * 2.4 + flow * 0.6 - crossFlow * 0.22) + 1) * 0.5;
+      const cross = (Math.sin(nx * -1.8 + ny * 4.8 + crossPhase) + 1) * 0.5;
+      const filaments = (Math.sin(nx * 7.2 - ny * 2.4 + filamentPhase) + 1) * 0.5;
       return smoothStep(primary * 0.54 + cross * 0.31 + filaments * 0.15);
     };
+
+    const createGranularGrid = () => {
+      const dots = [];
+      const stepX = width < 760 ? 25 : 20;
+      const stepY = width < 760 ? 24 : 20;
+      for (let row = 0, y = 12; y < height; row += 1, y += stepY) {
+        for (let column = 0, x = 10; x < width; column += 1, x += stepX) {
+          const seed = cellNoise(column, row, 1);
+          if (seed > 0.25) continue;
+          dots.push({
+            x, y, seed,
+            glyph: dotChars[cellNoise(column, row, 4) > 0.82 ? 1 : 0],
+            driftDepth: 0.22 + cellNoise(column, row, 2) * 0.42,
+            parallaxDepth: 0.55 + cellNoise(column, row, 5) * 0.55,
+            pulseRate: 0.15 + cellNoise(column, row, 3) * 0.1,
+            fadeRate: 0.33 + cellNoise(column, row, 6) * 0.16,
+            edgeFade: smoothStep(Math.min(x, y, width - x, height - y) / 74),
+          });
+        }
+      }
+      return dots;
+    };
+    let granularGrid: ReturnType<typeof createGranularGrid> = [];
 
     type IntroDrift = { elapsed: number; distance: number };
     const paintIntroGlyph = (glyph: string, x: number, y: number, alpha: number, intro: IntroDrift, fine = false) => {
@@ -526,62 +568,58 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       stormNodes: ActiveStormNode[],
       intensity: number,
       intro: IntroDrift | null,
+      reveal: ThemeReveal | null,
     ) => {
-      const stepX = width < 760 ? 25 : 20;
-      const stepY = width < 760 ? 24 : 20;
       const elapsedSeconds = stormElapsed / 1000;
       context.fillStyle = palette.grain;
+      let currentFont = "";
 
-      for (let row = 0, y = 12; y < height; row += 1, y += stepY) {
-        for (let column = 0, x = 10; x < width; column += 1, x += stepX) {
-          const seed = cellNoise(column, row, 1);
-          if (seed > 0.25) continue;
+      for (const { x, y, seed, glyph, driftDepth, parallaxDepth, pulseRate, fadeRate, edgeFade } of granularGrid) {
+        if (reveal && (x - reveal.x) ** 2 + (y - reveal.y) ** 2 > reveal.radiusSquared) continue;
+        const phase = elapsedSeconds * pulseRate + seed * 15;
+        const fadePhase = elapsedSeconds * fadeRate + seed * 47;
+        const pulse = reduceMotion ? 0.58 : 0.48 + Math.sin(phase) * 0.16;
+        const localFade = reduceMotion ? 0.92 : 0.84 + smoothStep((Math.sin(fadePhase) + 1) * 0.5) * 0.16;
+        const driftX = reduceMotion ? 0 : Math.sin(elapsedSeconds * 0.19 + seed * 27) * (0.28 + seed * 0.52);
+        const driftY = reduceMotion ? 0 : Math.cos(elapsedSeconds * 0.15 + seed * 19) * (0.22 + seed * 0.42);
+        const offsetX = Math.round(-parallaxX * parallaxDepth * 4.2 + driftX * (0.76 + driftDepth));
+        const offsetY = Math.round(-parallaxY * parallaxDepth * 3.1 + driftY * (0.76 + driftDepth));
+        const renderedX = x + offsetX;
+        const renderedY = y + offsetY;
+        const wave = sampleDotWave(renderedX, renderedY, elapsedSeconds);
+        const maskedX = renderedX + wave.offsetX;
+        const maskedY = renderedY + wave.offsetY;
+        let stormBoost = 0;
 
-          const driftDepth = 0.22 + cellNoise(column, row, 2) * 0.42;
-          const parallaxDepth = 0.55 + cellNoise(column, row, 5) * 0.55;
-          const phase = elapsedSeconds * (0.15 + cellNoise(column, row, 3) * 0.1) + seed * 15;
-          const fadePhase = elapsedSeconds * (0.33 + cellNoise(column, row, 6) * 0.16) + seed * 47;
-          const pulse = reduceMotion ? 0.58 : 0.48 + Math.sin(phase) * 0.16;
-          const localFade = reduceMotion ? 0.92 : 0.84 + smoothStep((Math.sin(fadePhase) + 1) * 0.5) * 0.16;
-          const driftX = reduceMotion ? 0 : Math.sin(elapsedSeconds * 0.19 + seed * 27) * (0.28 + seed * 0.52);
-          const driftY = reduceMotion ? 0 : Math.cos(elapsedSeconds * 0.15 + seed * 19) * (0.22 + seed * 0.42);
-          const edgeDistance = Math.min(x, y, width - x, height - y);
-          const glyph = dotChars[cellNoise(column, row, 4) > 0.82 ? 1 : 0];
-          const offsetX = Math.round(-parallaxX * parallaxDepth * 4.2 + driftX * (0.76 + driftDepth));
-          const offsetY = Math.round(-parallaxY * parallaxDepth * 3.1 + driftY * (0.76 + driftDepth));
-          const renderedX = x + offsetX;
-          const renderedY = y + offsetY;
-          const wave = sampleDotWave(renderedX, renderedY, elapsedSeconds);
-          const maskedX = renderedX + wave.offsetX;
-          const maskedY = renderedY + wave.offsetY;
-          let stormBoost = 0;
+        for (const stormNode of stormNodes) {
+          const distanceSquared = (maskedX - stormNode.x) ** 2 + (maskedY - stormNode.y) ** 2;
 
-          for (const stormNode of stormNodes) {
-            const distanceSquared = (maskedX - stormNode.x) ** 2 + (maskedY - stormNode.y) ** 2;
-
-            if (distanceSquared < stormNode.radiusSquared) {
-              const falloff = 1 - distanceSquared / stormNode.radiusSquared;
-              stormBoost = Math.max(stormBoost, falloff * falloff * stormNode.envelope);
-            }
+          if (distanceSquared < stormNode.radiusSquared) {
+            const falloff = 1 - distanceSquared / stormNode.radiusSquared;
+            stormBoost = Math.max(stormBoost, falloff * falloff * stormNode.envelope);
           }
+        }
 
-          const alpha =
-            (0.12 + pulse * 0.14) *
-            smoothStep(edgeDistance / 74) *
-            contentMask(maskedX, maskedY) *
-            wave.opacity *
-            localFade *
-            (1 + stormBoost * 0.55) * intensity;
-          if (alpha < 0.04) continue;
+        const alpha =
+          (0.12 + pulse * 0.14) *
+          edgeFade *
+          contentMask(maskedX, maskedY) *
+          wave.opacity *
+          localFade *
+          (1 + stormBoost * 0.55) * intensity;
+        if (alpha < 0.04) continue;
 
-          const dotAlpha = Math.min(0.32, alpha);
-          context.font = glyph === ":" ? "12px ui-monospace,monospace" : "11px ui-monospace,monospace";
-          if (intro) {
-            paintIntroGlyph(glyph, maskedX, maskedY, dotAlpha, intro, true);
-          } else {
-            context.globalAlpha = dotAlpha;
-            context.fillText(glyph, maskedX, maskedY);
-          }
+        const dotAlpha = Math.min(0.32, alpha);
+        const font = glyph === ":" ? "12px ui-monospace,monospace" : "11px ui-monospace,monospace";
+        if (currentFont !== font) {
+          context.font = font;
+          currentFont = font;
+        }
+        if (intro) {
+          paintIntroGlyph(glyph, maskedX, maskedY, dotAlpha, intro, true);
+        } else {
+          context.globalAlpha = dotAlpha;
+          context.fillText(glyph, maskedX, maskedY);
         }
       }
     };
@@ -726,19 +764,19 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       const delta = lastFrameTime ? Math.min(timestamp - lastFrameTime, 50) : 1000 / 60;
       lastFrameTime = timestamp;
       const ratio = window.devicePixelRatio || 1;
-      const nextWidth = canvas.clientWidth;
-      const nextHeight = canvas.clientHeight;
-      if (nextWidth !== width || nextHeight !== height) {
-        width = nextWidth;
-        height = nextHeight;
+      if (!width || !height || ratio !== canvasRatio) {
+        width = canvas.clientWidth;
+        height = canvas.clientHeight;
+        canvasRatio = ratio;
         canvas.width = width * ratio;
         canvas.height = height * ratio;
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        context.textBaseline = "middle";
+        granularGrid = createGranularGrid();
       }
 
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
       context.font = palette.cloudFont;
-      context.textBaseline = "middle";
 
       const now = performance.now();
       let intro: IntroDrift | null = null;
@@ -762,17 +800,29 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       const avatarGlitch = fieldIsAvatar ? 1 - smoothStep((now - fieldStarted) / 420) : 0;
       const field = fieldStrength > 0.015 && (!fieldIsAvatar || avatarGlitch > 0)
         ? fieldElement?.getBoundingClientRect() : undefined;
-      const fieldCanvas = field || wave.current ? canvas.getBoundingClientRect() : null;
-      const fieldLeft = (field?.left ?? 0) - (fieldCanvas?.left ?? 0);
-      const fieldTop = (field?.top ?? 0) - (fieldCanvas?.top ?? 0);
+      const fieldLeft = field ? field.left - canvasBounds.left : 0;
+      const fieldTop = field ? field.top - canvasBounds.top : 0;
       const fieldRight = fieldLeft + (field?.width ?? 0);
       const fieldBottom = fieldTop + (field?.height ?? 0);
       const fieldRange = fieldIsCard ? 61 : fieldIsAvatar ? 56 : 26;
       const activeWave = reduceMotion ? null : wave.current;
-      const waveProgress = activeWave ? clamp((now - activeWave.startedAt) / themeRevealDuration, 0, 1) : 1;
-      const waveRadius = waveProgress * (activeWave?.radius ?? 0);
-      const waveX = (activeWave?.x ?? 0) - (fieldCanvas?.left ?? 0);
-      const waveY = (activeWave?.y ?? 0) - (fieldCanvas?.top ?? 0);
+      const revealTime = activeWave?.reveal?.currentTime;
+      const waveElapsed = activeWave ? (typeof revealTime === "number" ? revealTime : now - activeWave.startedAt) : themeRevealDuration;
+      const waveProgress = clamp(waveElapsed / themeRevealDuration, 0, 1);
+      const waveCenter = waveProgress * (activeWave?.radius ?? 0) - 12;
+      const waveHalfWidth = 42;
+      const waveX = (activeWave?.x ?? 0) - canvasBounds.left;
+      const waveY = (activeWave?.y ?? 0) - canvasBounds.top;
+      const waveInnerSquared = Math.max(0, waveCenter - waveHalfWidth) ** 2;
+      const waveOuterSquared = (waveCenter + waveHalfWidth) ** 2;
+      // Paint ahead of the clip so the compositor has glyphs ready for its next frames.
+      const reveal = activeWave && typeof revealTime === "number" && revealTime < themeRevealDuration
+        ? {
+            x: waveX,
+            y: waveY,
+            radiusSquared: (clamp((revealTime + 34) / themeRevealDuration, 0, 1) * activeWave.radius + 32) ** 2,
+          }
+        : null;
 
       const intensity = compactQuery.matches ? 0.84 : 1;
       const parallaxX = reduceMotion || !finePointer ? 0 : pointerX.get();
@@ -813,6 +863,8 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       }
       const stormFlow = stormElapsed * (Math.PI * 2 / 7_600);
       const stormCrossFlow = stormElapsed * (Math.PI * 2 / 11_000);
+      const stormCrossPhase = stormCrossFlow + Math.sin(stormFlow) * 0.58;
+      const stormFilamentPhase = stormFlow * 0.6 - stormCrossFlow * 0.22;
       while (wake.length && now - wake[0].time > 1050) wake.shift();
       while (clickPulses.length && now - clickPulses[0].startedAt >= 900) clickPulses.shift();
       const activeClickPulses = clickPulses.map(({ x, y, startedAt }) => {
@@ -839,8 +891,13 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       if (width > 0 && height > 0) {
         context.fillStyle = palette.cloud;
         for (let y = 16; y < height; y += 14) {
+          const remaining = reveal ? reveal.radiusSquared - (y - reveal.y) ** 2 : Infinity;
+          if (remaining < 0) continue;
+          const reach = Math.sqrt(remaining);
+          const left = reveal ? Math.max(8, 8 + Math.ceil((reveal.x - reach - 8) / 10) * 10) : 8;
+          const right = reveal ? Math.min(width, reveal.x + reach) : width;
           const ny = (y / height - 0.5) * 2;
-          for (let x = 8; x < width; x += 10) {
+          for (let x = left; x < right; x += 10) {
             const nx = (x / width - 0.5) * 2;
             let influence = 0;
             let cardInk = 0;
@@ -861,15 +918,19 @@ function AsciiField({ wave, repaint, onIntroStep }: {
               fieldOffsetY = Math.sign(dy) * 5 * influence;
             }
             if (activeWave && waveProgress < 1) {
-              const distance = Math.hypot(x - waveX, y - waveY);
-              const ripple = smoothStep(1 - Math.abs(distance - waveRadius + 12) / 42) * (1 - waveProgress * 0.55);
-              influence = Math.max(influence, ripple * 0.7);
-              const radial = ripple * 7 / Math.max(1, distance);
-              fieldOffsetX += (x - waveX) * radial;
-              fieldOffsetY += (y - waveY) * radial;
+              const dx = x - waveX;
+              const dy = y - waveY;
+              const distanceSquared = dx * dx + dy * dy;
+              if (distanceSquared >= waveInnerSquared && distanceSquared < waveOuterSquared) {
+                const distance = Math.sqrt(distanceSquared);
+                const ripple = smoothStep(1 - Math.abs(distance - waveCenter) / waveHalfWidth) * (1 - waveProgress * 0.55);
+                influence = Math.max(influence, ripple * 0.7);
+                const radial = ripple * 7 / Math.max(1, distance);
+                fieldOffsetX += dx * radial;
+                fieldOffsetY += dy * radial;
+              }
             }
             const value = getFieldValue(x, y, nx, ny) + influence * 0.15;
-            const stormFront = getStormFront(nx, ny, stormFlow, stormCrossFlow);
             let trail = 0;
             let flash = 0;
             let clickPulse = 0;
@@ -925,9 +986,14 @@ function AsciiField({ wave, repaint, onIntroStep }: {
               }
             }
 
-            const threshold = 0.14 - stormFront * 0.065 - flash * 0.15 - trail * 0.25 - clickPulse * 0.22;
+            const interactiveInk = trail > 0.08 || clickPulse > 0.08 || cardInk > 0.055;
+            const baseThreshold = 0.14 - flash * 0.15 - trail * 0.25 - clickPulse * 0.22;
+            const stormThresholdSpan = 0.065;
+            if (!interactiveInk && value <= baseThreshold - stormThresholdSpan) continue;
+            const stormFront = getStormFront(nx, ny, stormFlow, stormCrossPhase, stormFilamentPhase);
+            const threshold = baseThreshold - stormFront * stormThresholdSpan;
 
-            if (value > threshold || trail > 0.08 || clickPulse > 0.08 || cardInk > 0.055) {
+            if (value > threshold || interactiveInk) {
               const cloudDepth = clamp((value - threshold) / (1 - threshold), 0, 1);
               const cloud = smoothStep(cloudDepth) * 0.68 + cloudDepth * 0.32;
               const crest = cloud * stormFront;
@@ -954,7 +1020,7 @@ function AsciiField({ wave, repaint, onIntroStep }: {
           }
         }
 
-        drawGranularDots(parallaxX, parallaxY, activeStormNodes, intensity, intro);
+        drawGranularDots(parallaxX, parallaxY, activeStormNodes, intensity, intro, reveal);
       }
 
       context.globalAlpha = 1;
@@ -1462,7 +1528,11 @@ export default function PortfolioClient() {
     });
     themeTransition.current = transition;
     void transition.ready.then(() => {
-      if (manualTheme.current === next) wave.current = { x, y, radius, startedAt: performance.now() };
+      if (manualTheme.current === next) {
+        const reveal = document.getAnimations().find((animation) =>
+          animation instanceof CSSAnimation && animation.animationName === "theme-reveal");
+        wave.current = { x, y, radius, startedAt: performance.now(), reveal };
+      }
     }, () => {});
     const finish = () => {
       themeTransition.current = null;
