@@ -8,6 +8,7 @@ import { CodeLeafText } from "@/components/ui/code-leaf";
 import type { CodeLeafMark } from "@/components/ui/code-leaf";
 import { EncryptedText } from "@/components/ui/encrypted-text";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
+import { MusicPulse } from "@/components/ui/music-pulse";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { asciiIntroStorageKey, isTheme, lightThemeQuery, themeStorageKey } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
@@ -1759,9 +1760,11 @@ export default function PortfolioClient() {
 
           <SpotlightCard as="section" className="music-card" aria-label={currentCopy.spotify} data-source={track?.source ?? "empty"} data-playing={isPlaying}>
             <IntroOutline />
-            <span className="music-wave" aria-hidden="true">
-              <i /><i /><i /><i /><i /><i /><i /><i /><i />
-            </span>
+            <MusicPulse
+              trackKey={track ? JSON.stringify([track.title, track.artist]) : null}
+              playing={isPlaying}
+              language={language}
+            />
             <div className="music-art">
               {track && failedCover !== track.cover
                 ? <img className="music-cover" src={track.cover} alt="" width="54" height="54" onError={handleCoverError} />
