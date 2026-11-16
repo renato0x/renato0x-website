@@ -12,6 +12,7 @@ import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { asciiIntroStorageKey, isTheme, lightThemeQuery, themeStorageKey } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
 import { PortfolioCursor } from "@/components/ui/portfolio-cursor";
+import { introLogs, introTiming } from "@/lib/portfolio-intro";
 import { version as portfolioVersion } from "../../package.json";
 
 type Language = "pt" | "en";
@@ -305,14 +306,21 @@ async function getAuthorCommitCount(projectName: ProjectName, signal: AbortSigna
 }
 
 type ThemeWave = { x: number; y: number; radius: number; startedAt: number };
-type IntroStage = "idle" | "assembling" | "dispersing" | "revealing" | "ready";
 const themeRevealDuration = 700;
-const introTiming = { disperse: 1450, reveal: 3650, settle: 4400, ready: 4650 };
+const introStyle = Object.fromEntries(Object.entries(introTiming).map(([key, value]) => [`--intro-${key}`, `${value}ms`])) as CSSProperties;
 
-function AsciiField({ wave, repaint, onIntroStage }: {
+function IntroOutline() {
+  return (
+    <svg className="intro-outline" aria-hidden="true" focusable="false">
+      <rect pathLength="100" />
+    </svg>
+  );
+}
+
+function AsciiField({ wave, repaint, onIntroStep }: {
   wave: RefObject<ThemeWave | null>;
   repaint: RefObject<(() => void) | null>;
-  onIntroStage: (stage: IntroStage) => void;
+  onIntroStep: (step: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerTargetX = useMotionValue(0);
@@ -371,15 +379,15 @@ function AsciiField({ wave, repaint, onIntroStage }: {
     let finePointer = hoverQuery.matches;
     let lastWakePoint: { x: number; y: number; time: number } | null = null;
     let introStarted = !reduceMotion && !document.hidden && root.dataset.asciiIntro === "pending" ? performance.now() : null;
-    let playingStage: IntroStage = "assembling";
+    let introStep = 0;
     let fieldElement: HTMLElement | null = null;
     let fieldHovered = false;
     let fieldStrength = 0;
     let fieldStarted = 0;
 
     if (introStarted !== null) {
-      root.dataset.asciiIntro = "assembling";
-      onIntroStage("assembling");
+      root.dataset.asciiIntro = "building";
+      onIntroStep(introStep);
       try { sessionStorage.setItem(asciiIntroStorageKey, "1"); } catch { /* The introduction can still run on this view. */ }
     } else if (root.dataset.asciiIntro === "pending") {
       delete root.dataset.asciiIntro;
@@ -388,7 +396,13 @@ function AsciiField({ wave, repaint, onIntroStage }: {
     const finishIntro = () => {
       introStarted = null;
       root.dataset.asciiIntro = "ready";
-      onIntroStage("ready");
+      onIntroStep(-1);
+    };
+    const handleIntroFocus = (event: FocusEvent) => {
+      if (introStarted !== null && event.target instanceof Element && event.target.closest(".page")) finishIntro();
+    };
+    const handleIntroKey = (event: KeyboardEvent) => {
+      if (introStarted !== null && event.key === "Escape") finishIntro();
     };
 
     const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value));
@@ -397,7 +411,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
       return normalized * normalized * (3 - 2 * normalized);
     };
     const syncField = (event: PointerEvent) => {
-      if (reduceMotion || !finePointer || event.pointerType === "touch") return;
+      if (introStarted !== null || reduceMotion || !finePointer || event.pointerType === "touch") return;
       const target = event.target instanceof Element
         ? event.target.closest<HTMLElement>(".spotlight-card, .avatar-preview-trigger, .preference-switch button, .socials a, .stack-item, .code-leaf, .portfolio-status a")
         : null;
@@ -609,7 +623,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
     };
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (reduceMotion) return;
+      if (introStarted !== null || reduceMotion) return;
       if (typeof document.startViewTransition === "function" && event.target instanceof Element &&
           event.target.closest('.theme-switch button[aria-pressed="false"]')) return;
 
@@ -623,7 +637,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
     };
 
     const handlePointerMove = (event: PointerEvent) => {
-      if (!finePointer || event.pointerType === "touch") return;
+      if (introStarted !== null || !finePointer || event.pointerType === "touch") return;
 
       const nextX = (event.clientX / window.innerWidth - 0.5) * 2;
       const nextY = (event.clientY / window.innerHeight - 0.5) * 2;
@@ -707,18 +721,22 @@ function AsciiField({ wave, repaint, onIntroStage }: {
 
       const now = performance.now();
       let spread = 1;
+      let introInk = 1;
       if (introStarted !== null) {
         const elapsed = now - introStarted;
-        const progress = clamp((elapsed - introTiming.disperse) / (introTiming.settle - introTiming.disperse), 0, 1);
-        const cluster = 0.054 + 0.021 * smoothStep(elapsed / introTiming.disperse);
+        const progress = clamp((elapsed - introTiming.gather) / (introTiming.settle - introTiming.gather), 0, 1);
+        const cluster = 0.15 - 0.075 * smoothStep(elapsed / introTiming.gather);
         spread = cluster + (1 - cluster) * smoothStep(progress);
-        const stage = elapsed >= introTiming.reveal ? "revealing" : elapsed >= introTiming.disperse ? "dispersing" : "assembling";
+        introInk = 0.38 + 0.62 * smoothStep(elapsed / 730);
         if (elapsed >= introTiming.ready) {
           finishIntro();
-        } else if (stage !== playingStage) {
-          root.dataset.asciiIntro = stage;
-          onIntroStage(stage);
-          playingStage = stage;
+        } else {
+          let nextStep = introStep;
+          while (introLogs[nextStep + 1] && elapsed >= introLogs[nextStep + 1].at) nextStep += 1;
+          if (nextStep !== introStep) {
+            introStep = nextStep;
+            onIntroStep(introStep);
+          }
         }
       }
       fieldStrength += ((fieldHovered && !reduceMotion ? 1 : 0) - fieldStrength) * (1 - Math.exp(-delta / 105));
@@ -908,7 +926,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
               const alpha = Math.min(0.68, (ambient + response + influence * 0.15 + cardInk * 0.31) * palette.cloudContrast) * contentMask(renderedX, renderedY) * intensity;
               if (alpha < 0.008) continue;
 
-              context.globalAlpha = alpha * (0.25 + 0.75 * spread);
+              context.globalAlpha = alpha * (0.25 + 0.75 * spread) * introInk;
               context.fillText(
                 chars[Math.floor(density * (chars.length - 1))],
                 spread < 1 ? width / 2 + (renderedX - width / 2) * spread + Math.sin(y * 0.075 + time * 8) * (1 - spread) * 11 : renderedX,
@@ -987,6 +1005,8 @@ function AsciiField({ wave, repaint, onIntroStage }: {
     window.addEventListener("pointerleave", resetParallax);
     window.addEventListener("scroll", updateContentMask, { passive: true });
     document.addEventListener("visibilitychange", handleVisibility);
+    document.addEventListener("focusin", handleIntroFocus);
+    document.addEventListener("keydown", handleIntroKey);
     motionQuery.addEventListener("change", handleMotionPreference);
     hoverQuery.addEventListener("change", handleHoverPreference);
     draw();
@@ -1005,10 +1025,12 @@ function AsciiField({ wave, repaint, onIntroStage }: {
       window.removeEventListener("pointerleave", resetParallax);
       window.removeEventListener("scroll", updateContentMask);
       document.removeEventListener("visibilitychange", handleVisibility);
+      document.removeEventListener("focusin", handleIntroFocus);
+      document.removeEventListener("keydown", handleIntroKey);
       motionQuery.removeEventListener("change", handleMotionPreference);
       hoverQuery.removeEventListener("change", handleHoverPreference);
     };
-  }, [pointerTargetX, pointerTargetY, pointerX, pointerY, wave, repaint, onIntroStage]);
+  }, [pointerTargetX, pointerTargetY, pointerX, pointerY, wave, repaint, onIntroStep]);
 
   return <canvas ref={canvasRef} className="ascii-field" aria-hidden="true" />;
 }
@@ -1140,6 +1162,7 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
           }
         }}
       >
+        <IntroOutline />
         <img className="avatar" src={src} alt="" width="1317" height="1317" />
       </button>
       {preview}
@@ -1154,7 +1177,7 @@ export default function PortfolioClient() {
   const themeTransition = useRef<ViewTransition | null>(null);
   const wave = useRef<ThemeWave | null>(null);
   const repaint = useRef<(() => void) | null>(null);
-  const [introStage, setIntroStage] = useState<IntroStage>("idle");
+  const [introStep, setIntroStep] = useState(-1);
   const [localeMotionReady, setLocaleMotionReady] = useState(false);
   const [localeTransitionId, setLocaleTransitionId] = useState(0);
   const reduceMotion = useReducedMotion();
@@ -1442,26 +1465,25 @@ export default function PortfolioClient() {
   const socialLinksLabel = currentCopy.socialLinks;
   const isPlaying = track?.source === "spotify" || track?.source === "discord";
   const [bioLead, bioRest] = currentCopy.bio;
-  const assembling = introStage !== "idle" && introStage !== "ready";
-  const launchMessages = language === "pt"
-    ? ["Tema aplicado", "Concentrando caracteres ASCII", "Dispersando caracteres pelo fundo", "Revelando a interface", "Interface pronta"]
-    : ["Theme applied", "Gathering ASCII characters", "Dispersing characters across the background", "Revealing the interface", "Interface ready"];
+  const assembling = introStep >= 0;
+  const currentIntroLog = introLogs[introStep];
+  const visibleIntroLogs = assembling ? introLogs.slice(Math.max(0, introStep - 1), introStep + 1) : [];
 
   return (
     <>
-      <AsciiField wave={wave} repaint={repaint} onIntroStage={setIntroStage} />
+      <AsciiField wave={wave} repaint={repaint} onIntroStep={setIntroStep} />
       <PortfolioCursor />
-      {introStage !== "idle" && (
-        <div className="launch-log" data-stage={introStage} aria-hidden="true">
-          <span>[OK] {launchMessages[0]}</span>
-          <span className="launch-log-cluster">[{introStage === "assembling" ? "··" : "OK"}] {launchMessages[1]}</span>
-          {introStage !== "assembling" && <span>[{introStage === "ready" ? "OK" : "··"}] {launchMessages[2]}</span>}
-          {introStage === "revealing" && <span>[··] {launchMessages[3]}</span>}
-          {introStage === "ready" && <span>[OK] {launchMessages[4]}</span>}
-        </div>
-      )}
-      <main className="page page-intro" aria-label={currentCopy.content}>
+      <main className="page page-intro" aria-label={currentCopy.content} style={introStyle}>
         <header className="utility">
+          {assembling && (
+            <div className="launch-log" aria-hidden="true">
+              {visibleIntroLogs.map((log) => (
+                <span key={log.at} data-complete={log.ok}>
+                  [{log.ok ? "OK" : "··"}] {log[language]}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="preference-switch theme-switch" data-pending={theme === null || undefined} role="group" aria-label={language === "pt" ? "Tema" : "Theme"}>
             {(["light", "dark"] as const).map((option) => (
               <button
@@ -1531,6 +1553,11 @@ export default function PortfolioClient() {
                         glitchIntervalMs={0}
                       />
                     : <span className="profile-name">Renato Monteiro</span>}
+                  {currentIntroLog?.at === introTiming.name && (
+                    <span className="intro-name-code" aria-hidden="true">
+                      <EncryptedText text={profileDisplayName} className="profile-name" encryptedClassName="scrambled-text" revealMode="organic" revealDurationMs={420} glitchIntervalMs={0} charset=".:=+*#@" />
+                    </span>
+                  )}
                 </span>
                 <p className="profile-role">
                   <LocaleSwap ready={localeMotionReady} transitionId={localeTransitionId}>
@@ -1585,6 +1612,7 @@ export default function PortfolioClient() {
                   aria-label={`${project.name}. ${project.description[language]}. ${commits[project.name] ?? project.fallbackCommits} ${currentCopy.githubCommits}. ${currentCopy.openProject(project.name)}`}
                   key={project.name}
                 >
+                  <IntroOutline />
                   <div className="project-top">
                     <img className="project-mark" src={project.logo} alt="" />
                     <span className="project-open" aria-hidden="true">↗</span>
@@ -1642,6 +1670,7 @@ export default function PortfolioClient() {
           </section>
 
           <SpotlightCard as="section" className="music-card" aria-label={currentCopy.spotify} data-source={track?.source ?? "empty"} data-playing={isPlaying}>
+            <IntroOutline />
             <span className="music-wave" aria-hidden="true">
               <i /><i /><i /><i /><i /><i /><i /><i /><i />
             </span>

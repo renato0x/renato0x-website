@@ -49,25 +49,80 @@
   83% { opacity: .22; clip-path: inset(20% 0 54%); transform: translateX(0); }
 }
 
-.launch-log { position: fixed; z-index: 3; left: max(clamp(18px, 3.5vw, 42px), env(safe-area-inset-left)); bottom: calc(clamp(20px, 4vh, 40px) + env(safe-area-inset-bottom)); display: grid; gap: 6px; width: max-content; max-width: calc(100vw - 36px - env(safe-area-inset-left) - env(safe-area-inset-right)); color: var(--soft); font: clamp(13px, 1.05vw, 16px)/1.45 var(--mono); pointer-events: none; transition: opacity .35s ease; }
-.launch-log span { background: var(--bg); width: fit-content; padding-inline: 3px; }
-.launch-log-cluster { animation: intro-copy .32s ease .45s both; }
-.launch-log[data-stage="ready"] { opacity: 0; }
+.launch-log { position: absolute; inset-inline-start: max(0px, (100% - 1135.2px) / 2); inset-block-start: 50%; translate: 0 -50%; display: grid; gap: 2px; min-width: 0; max-width: 100%; color: var(--soft); font: clamp(11px, 1.02vw, 14px)/1.35 var(--mono); pointer-events: none; animation: intro-out .33s ease var(--intro-logFade) forwards; }
+.launch-log span { width: fit-content; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: intro-type .22s steps(18, end) both; }
+.launch-log span[data-complete="true"] { color: var(--muted); }
+.intro-outline, .intro-name-code { display: none; }
 
 @media (prefers-reduced-motion: no-preference) {
-  :root:is([data-ascii-intro="pending"], [data-ascii-intro="assembling"], [data-ascii-intro="dispersing"]) .page:not(:focus-within) :is(.utility, .profile-column, .bio-block, .projects, .stacks, .music-card, .portfolio-status) { animation: none; opacity: 0; }
-  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .profile-column { animation: intro-drift .38s ease-out both; }
-  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .bio-block { animation: intro-copy .36s ease-out .13s both; }
-  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .projects { animation: none; }
-  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .project-card { animation: ascii-reveal .45s cubic-bezier(.22,1,.36,1) calc(220ms + var(--n) * 60ms) both; }
-  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .stacks { animation: intro-copy .32s ease-out .34s both; }
-  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .stack-item { animation: intro-drift .3s ease-out calc(350ms + var(--stack-index) * 15ms) both; }
-  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro :is(.music-card, .utility) { animation: intro-copy .32s ease-out .55s both; }
-  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .portfolio-status { animation: intro-copy .28s ease-out .68s both; }
-  :root[data-ascii-intro] .page-intro:focus-within :is(.utility, .profile-column, .bio-block, .projects, .project-card, .stacks, .stack-item, .music-card, .portfolio-status) { animation: none; opacity: 1; }
+  :root[data-ascii-intro] :is(.profile-column, .bio-block, .projects, .project-card, .stacks, .music-card, .entry-ascii) { animation: none; }
+  :root[data-ascii-intro="pending"] .page:not(:focus-within) :is(.preference-switch, .profile-column, .bio-block, .projects, .stacks, .music-card, .portfolio-status) { opacity: 0; }
+  :root:is([data-ascii-intro="pending"], [data-ascii-intro="building"]) .page { pointer-events: none; }
+
+  :root[data-ascii-intro="building"] .profile-column { border-bottom-color: transparent; }
+  :root[data-ascii-intro="building"] .profile-column::after { content: ""; position: absolute; inset: auto 0 -1px; height: 1px; background: var(--line); animation: intro-trace .63s cubic-bezier(.3,.7,.2,1) var(--intro-header) both; }
+  :root[data-ascii-intro="building"] .avatar-preview-trigger { --frame-at: var(--intro-profile); }
+  :root[data-ascii-intro="building"] .avatar { animation: intro-scan .44s ease-out calc(var(--intro-profile) + 290ms) both; }
+  :root[data-ascii-intro="building"] .profile-name-wrap > .profile-name { animation: intro-copy .12s ease-out calc(var(--intro-name) + 430ms) both; }
+  :root[data-ascii-intro="building"] .intro-name-code { display: block; position: absolute; inset: 0 auto auto 0; white-space: nowrap; animation: intro-out .12s ease-out calc(var(--intro-name) + 360ms) both; }
+  :root[data-ascii-intro="building"] .profile-role { animation: intro-copy .32s ease-out var(--intro-role) both; }
+  :root[data-ascii-intro="building"] .socials a { animation: intro-scan .3s ease-out calc(var(--intro-role) + var(--social-delay, 90ms)) both; }
+  .socials a:nth-child(2) { --social-delay: 155ms; }
+  .socials a:nth-child(3) { --social-delay: 220ms; }
+  .socials a:nth-child(4) { --social-delay: 285ms; }
+
+  :root[data-ascii-intro="building"] .bio-block p { animation: intro-scan .64s cubic-bezier(.3,.7,.25,1) var(--intro-bio) both; }
+  :root[data-ascii-intro="building"] .bio-rest p { animation-delay: calc(var(--intro-bio) + 420ms); }
+  :root[data-ascii-intro="building"] .project-card { --frame-at: calc(var(--intro-projects) - 260ms + (var(--n) - 1) * var(--intro-projectInterval)); --intro-card-surface: var(--project-surface); }
+  :root[data-ascii-intro="building"] .music-card { --frame-at: var(--intro-music); --intro-card-surface: var(--music-surface); }
+  :root[data-ascii-intro="building"] .spotlight-card {
+    --intro-card-blur: blur(5.5px);
+    background: transparent;
+    border-color: transparent;
+    backdrop-filter: none;
+    transition: none;
+    animation: intro-card-finish .12s linear calc(var(--frame-at) + 790ms) both;
+  }
+  :root[data-ascii-intro="building"] .spotlight-card::before {
+    background: var(--intro-card-surface);
+    animation: intro-scan .36s ease-out calc(var(--frame-at) + 360ms) both, intro-out .12s linear calc(var(--frame-at) + 790ms) forwards;
+  }
+  :root[data-ascii-intro="building"] .intro-outline {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    fill: none;
+    stroke: var(--line-strong);
+    stroke-width: 1;
+    pointer-events: none;
+    animation: intro-out .25s ease calc(var(--frame-at) + 620ms) forwards;
+  }
+  :root[data-ascii-intro="building"] .intro-outline rect { x: 1px; y: 1px; width: calc(100% - 2px); height: calc(100% - 2px); rx: 8px; stroke-dasharray: 100; animation: intro-draw .54s ease-out var(--frame-at) both; }
+  :root[data-ascii-intro="building"] .avatar-preview-trigger .intro-outline rect { rx: 5px; }
+  :root[data-ascii-intro="building"] :is(.project-mark, .project-open, .music-art) { animation: intro-scan .27s ease-out calc(var(--frame-at) + 570ms) both; }
+  :root[data-ascii-intro="building"] :is(.project-copy h3, .music-heading, .music-title) { animation: intro-type .31s steps(22, end) calc(var(--frame-at) + 660ms) both; }
+  :root[data-ascii-intro="building"] :is(.project-copy p, .music-artist) { animation: intro-scan .35s ease-out calc(var(--frame-at) + 765ms) both; }
+  :root[data-ascii-intro="building"] :is(.project-meta, .music-wave) { animation: intro-copy .2s ease-out calc(var(--frame-at) + 890ms) both; }
+  :root[data-ascii-intro="building"] .stack-item { animation: intro-scan .3s ease-out calc(var(--intro-stack) + var(--stack-index) * 48ms) both; }
+  :root[data-ascii-intro="building"] .portfolio-status { animation: intro-trace .43s ease-out var(--intro-footer) both; }
+  :root[data-ascii-intro="building"] .preference-switch { animation: intro-copy .34s ease-out var(--intro-controls) both; }
 }
-@keyframes intro-drift { from { opacity: 0; translate: 0 5px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-ascii-intro="building"] .spotlight-card { --intro-card-blur: none; --intro-card-surface: var(--panel); }
+}
+@keyframes intro-card-finish {
+  from { background: transparent; border-color: transparent; backdrop-filter: none; }
+  to { background: var(--intro-card-surface); border-color: var(--card-line); backdrop-filter: var(--intro-card-blur); }
+}
+@keyframes intro-draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@keyframes intro-trace { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+@keyframes intro-scan { from { clip-path: inset(0 0 100% 0); opacity: .15; } to { clip-path: inset(0); opacity: 1; } }
+@keyframes intro-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
 @keyframes intro-copy { from { opacity: 0; } to { opacity: 1; } }
+@keyframes intro-out { from { opacity: 1; } to { opacity: 0; } }
 
 .portfolio-status { align-self: end; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin-top: clamp(22px, 3vw, 34px); color: var(--muted); font: 10px/1.45 var(--mono); }
 .portfolio-status-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px clamp(8px, 1.5vw, 15px); }
