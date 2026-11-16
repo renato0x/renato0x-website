@@ -894,21 +894,28 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
   const [isMounted, setIsMounted] = useState(false);
   const [previewBounds, setPreviewBounds] = useState({ left: 0, top: 0, size: 0 });
   const reduceMotion = useReducedMotion();
+  const spring = { stiffness: 300, damping: 28, mass: 0.3 };
+  const x = useSpring(0, spring);
+  const y = useSpring(0, spring);
+  const rotate = useSpring(0, spring);
 
   useEffect(() => setIsMounted(true), []);
 
   const openPreview = (trigger: HTMLButtonElement) => {
     const bounds = trigger.getBoundingClientRect();
     const isCompact = window.matchMedia("(max-width: 700px)").matches;
-    const margin = 12;
-    const top = Math.max(margin, bounds.bottom + 12);
+    const margin = 16;
+    const top = Math.max(margin, bounds.bottom + 16);
     const { clientWidth, clientHeight } = document.documentElement;
-    const size = Math.min(isCompact ? 190 : 220, clientWidth - margin * 2, clientHeight - top - margin);
+    const size = Math.min(150, clientWidth - margin * 2, clientHeight - top - margin);
     if (size <= 0) return;
 
     const left = isCompact
       ? (clientWidth - size) / 2
       : Math.max(margin, Math.min(bounds.left, clientWidth - size - margin));
+    x.jump(0);
+    y.jump(0);
+    rotate.jump(0);
     setPreviewBounds({ left, top, size });
     setIsOpen(true);
   };
@@ -937,7 +944,11 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
       id="profile-photo-preview"
       className="profile-photo-preview"
       data-open={isOpen}
-      style={{ left: previewBounds.left, top: previewBounds.top, width: previewBounds.size, height: previewBounds.size }}
+      style={{
+        left: previewBounds.left, top: previewBounds.top,
+        width: previewBounds.size, height: previewBounds.size,
+        x: reduceMotion ? 0 : x, y: reduceMotion ? 0 : y, rotate: reduceMotion ? 0 : rotate,
+      }}
       initial={{ opacity: 0, scale: 0.94 }}
       animate={isOpen ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.94 }}
       transition={reduceMotion ? { duration: 0 } : {
@@ -963,7 +974,19 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
         onPointerEnter={(event) => {
           if (event.pointerType !== "touch") openPreview(event.currentTarget);
         }}
+        onPointerMove={(event) => {
+          if (!isOpen || reduceMotion || event.pointerType === "touch") return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          const horizontal = (event.clientX - bounds.left) / bounds.width * 2 - 1;
+          const vertical = (event.clientY - bounds.top) / bounds.height * 2 - 1;
+          x.set(horizontal * 8);
+          y.set(vertical * 4);
+          rotate.set(horizontal * 3);
+        }}
         onPointerLeave={(event) => {
+          x.set(0);
+          y.set(0);
+          rotate.set(0);
           if (event.pointerType !== "touch" && !event.currentTarget.matches(":focus-visible")) {
             setIsOpen(false);
           }
