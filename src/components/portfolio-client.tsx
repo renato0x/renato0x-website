@@ -903,11 +903,11 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
 
   const openPreview = (trigger: HTMLButtonElement) => {
     const bounds = trigger.getBoundingClientRect();
-    const isCompact = window.matchMedia("(max-width: 700px)").matches;
-    const margin = 16;
-    const top = Math.max(margin, bounds.bottom + 16);
+    const isCompact = window.matchMedia("(max-width: 770px)").matches;
+    const margin = 17.6;
+    const top = Math.max(margin, bounds.bottom + margin);
     const { clientWidth, clientHeight } = document.documentElement;
-    const size = Math.min(150, clientWidth - margin * 2, clientHeight - top - margin);
+    const size = Math.min(165, clientWidth - margin * 2, clientHeight - top - margin);
     if (size <= 0) return;
 
     const left = isCompact
@@ -979,8 +979,8 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
           const bounds = event.currentTarget.getBoundingClientRect();
           const horizontal = (event.clientX - bounds.left) / bounds.width * 2 - 1;
           const vertical = (event.clientY - bounds.top) / bounds.height * 2 - 1;
-          x.set(horizontal * 8);
-          y.set(vertical * 4);
+          x.set(horizontal * 8.8);
+          y.set(vertical * 4.4);
           rotate.set(horizontal * 3);
         }}
         onPointerLeave={(event) => {
@@ -1296,7 +1296,7 @@ export default function PortfolioClient() {
                     transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 38 }}
                   />
                 )}
-                <svg className="preference-label" aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="preference-label" aria-hidden="true" width="16.5" height="16.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                   {option === "light" ? (
                     <>
                       <circle cx="12" cy="12" r="4" />
@@ -1414,7 +1414,7 @@ export default function PortfolioClient() {
                       {project.meta[language]}
                     </span>
                     <span className="stars" aria-label={currentCopy.githubStars}>
-                      <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                         <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
                       </svg>
                       <b aria-live="polite">{stars[project.name] ?? project.fallbackStars}</b>
@@ -1425,7 +1425,7 @@ export default function PortfolioClient() {
                       title={currentCopy.githubCommits}
                       aria-label={`${commits[project.name] ?? project.fallbackCommits} ${currentCopy.githubCommits}`}
                     >
-                      <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                      <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
                         <path d="M3 12h6m6 0h6" />
                         <circle cx="12" cy="12" r="3" />
                       </svg>

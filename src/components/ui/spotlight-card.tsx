@@ -42,7 +42,7 @@ export function SpotlightCard(props: SpotlightCardProps) {
       const closestX = Math.max(bounds.left, Math.min(event.clientX, bounds.right));
       const closestY = Math.max(bounds.top, Math.min(event.clientY, bounds.bottom));
       const distance = Math.hypot(event.clientX - closestX, event.clientY - closestY);
-      const near = distance <= 24;
+      const near = distance <= 26.4;
       card.dataset.spotlightPointerNear = String(near);
 
       if (near) {

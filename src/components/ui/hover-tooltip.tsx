@@ -53,8 +53,8 @@ export function HoverTooltip({
       const tooltip = tooltipRef.current;
       if (!trigger || !tooltip) return;
 
-      const margin = 12;
-      const gap = 7;
+      const margin = 13.2;
+      const gap = 7.7;
       const { width, height } = tooltip.getBoundingClientRect();
       const left = clamp(
         trigger.left + trigger.width / 2 - width / 2,
@@ -125,8 +125,8 @@ export function HoverTooltip({
               className="portfolio-tooltip"
               style={{ top: tooltipPosition.top, left: tooltipPosition.left }}
               initial={false}
-              animate={tooltipReady ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: -3, scale: 0.98 }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -2, scale: 0.985 }}
+              animate={tooltipReady ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: -3.3, scale: 0.98 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -2.2, scale: 0.985 }}
               transition={reduceMotion ? { duration: 0.08 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               aria-hidden="true"
             >

@@ -81,8 +81,8 @@ export function CodeLeaf({
       const tooltip = tooltipRef.current;
       if (!trigger || !tooltip) return;
 
-      const margin = 12;
-      const gap = 8;
+      const margin = 13.2;
+      const gap = 8.8;
       const width = tooltip.getBoundingClientRect().width;
       const height = tooltip.getBoundingClientRect().height;
       const left = clamp(
@@ -115,11 +115,11 @@ export function CodeLeaf({
   };
 
   const hoverMotion = {
-    y: -2,
+    y: -2.2,
     scale: 1.035,
   };
   const pressMotion = {
-    y: 1,
+    y: 1.1,
     scale: 0.96,
     transition: { type: "spring" as const, stiffness: 520, damping: 26 },
   };
@@ -163,8 +163,8 @@ export function CodeLeaf({
               className="code-leaf-tooltip"
               style={{ top: tooltipPosition.top, left: tooltipPosition.left }}
               initial={false}
-              animate={tooltipReady ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 4, scale: 0.98 }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 3, scale: 0.985 }}
+              animate={tooltipReady ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: 4.4, scale: 0.98 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 3.3, scale: 0.985 }}
               transition={reduceMotion ? { duration: 0.08 } : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               aria-hidden="true"
             >
