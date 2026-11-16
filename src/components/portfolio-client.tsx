@@ -9,6 +9,8 @@ import type { CodeLeafMark } from "@/components/ui/code-leaf";
 import { EncryptedText } from "@/components/ui/encrypted-text";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
+import { isTheme, lightThemeQuery, themeStorageKey } from "@/lib/theme";
+import type { Theme } from "@/lib/theme";
 
 type Language = "pt" | "en";
 type ProjectName = "CashPad" | "Transcrypty" | "SUB-SEEMG";
@@ -218,7 +220,7 @@ function LocaleSwap({
         flipDelayMs={150}
         glitchIntervalMs={0}
         charset=".:=+*#@"
-        encryptedClassName="text-neutral-400"
+        encryptedClassName="scrambled-text"
       />
     </span>
   );
@@ -312,6 +314,16 @@ function AsciiField() {
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
 
+    const root = document.documentElement;
+    const readPalette = () => {
+      const style = window.getComputedStyle(root);
+      return {
+        cloud: style.getPropertyValue("--ascii-cloud").trim(),
+        grain: style.getPropertyValue("--ascii-grain").trim(),
+      };
+    };
+    let palette = readPalette();
+
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const hoverQuery = window.matchMedia("(any-hover: hover) and (any-pointer: fine)");
     const compactQuery = window.matchMedia("(max-width: 760px)");
@@ -324,7 +336,7 @@ function AsciiField() {
       { selector: ".stacks", strength: 0.60, feather: 26 },
       { selector: ".projects", strength: 0.73, feather: 42 },
       { selector: ".profile-column", strength: 0.78, feather: 42 },
-      { selector: ".language-switch", strength: 0.83, feather: 28 },
+      { selector: ".preference-switch", strength: 0.83, feather: 28 },
     ];
     let contentMaskZones: Array<{ left: number; top: number; right: number; bottom: number; strength: number; feather: number }> = [];
     let time = 0;
@@ -480,7 +492,7 @@ function AsciiField() {
           if (alpha < 0.04) continue;
 
           context.globalAlpha = Math.min(0.32, alpha);
-          context.fillStyle = "#dedede";
+          context.fillStyle = palette.grain;
           context.font = glyph === ":" ? "12px ui-monospace,monospace" : "11px ui-monospace,monospace";
           context.fillText(glyph, maskedX, maskedY);
         }
@@ -779,7 +791,7 @@ function AsciiField() {
               if (alpha < 0.008) continue;
 
               context.globalAlpha = alpha;
-              context.fillStyle = "#e7e7e7";
+              context.fillStyle = palette.cloud;
               context.fillText(
                 chars[Math.floor(density * (chars.length - 1))],
                 renderedX,
@@ -831,9 +843,14 @@ function AsciiField() {
       if (reduceMotion && !document.hidden) draw();
     };
     const layoutObserver = new ResizeObserver(updateContentMask);
+    const paletteObserver = new MutationObserver(() => {
+      palette = readPalette();
+      if (reduceMotion && !document.hidden) draw();
+    });
 
     resizeObserver.observe(canvas);
-    document.querySelectorAll<HTMLElement>(".content-layout, .language-switch, .bio-block, .stacks, .projects, .profile-column").forEach((element) => layoutObserver.observe(element));
+    paletteObserver.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    document.querySelectorAll<HTMLElement>(".content-layout, .preference-switch, .bio-block, .stacks, .projects, .profile-column").forEach((element) => layoutObserver.observe(element));
     refreshContentMask();
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
     window.addEventListener("pointerdown", handlePointerDown, { passive: true });
@@ -848,6 +865,7 @@ function AsciiField() {
       window.cancelAnimationFrame(frame);
       resizeObserver.disconnect();
       layoutObserver.disconnect();
+      paletteObserver.disconnect();
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("pointerleave", resetParallax);
@@ -1020,6 +1038,8 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
 
 export default function PortfolioClient() {
   const [language, setLanguage] = useState<Language>("en");
+  const [theme, setTheme] = useState<Theme | null>(null);
+  const manualTheme = useRef<Theme | null>(null);
   const [localeMotionReady, setLocaleMotionReady] = useState(false);
   const [localeTransitionId, setLocaleTransitionId] = useState(0);
   const reduceMotion = useReducedMotion();
@@ -1038,6 +1058,25 @@ export default function PortfolioClient() {
   const [profileName, setProfileName] = useState(profileDisplayName);
   const [isProfileNameTransitioning, setIsProfileNameTransitioning] = useState(false);
   const currentCopy = copy[language];
+
+  useEffect(() => {
+    const system = window.matchMedia(lightThemeQuery);
+    try {
+      const saved = window.localStorage.getItem(themeStorageKey);
+      if (isTheme(saved)) manualTheme.current = saved;
+    } catch {
+      // Follow the system until the visitor makes a choice for this page.
+    }
+
+    const syncTheme = () => {
+      const next = manualTheme.current ?? (system.matches ? "light" : "dark");
+      document.documentElement.dataset.theme = next;
+      setTheme(next);
+    };
+    syncTheme();
+    system.addEventListener("change", syncTheme);
+    return () => system.removeEventListener("change", syncTheme);
+  }, []);
 
   useEffect(() => {
     try {
@@ -1228,6 +1267,17 @@ export default function PortfolioClient() {
     }
   };
 
+  const changeTheme = (next: Theme) => {
+    manualTheme.current = next;
+    document.documentElement.dataset.theme = next;
+    setTheme(next);
+    try {
+      window.localStorage.setItem(themeStorageKey, next);
+    } catch {
+      // The current page can still use the selected theme.
+    }
+  };
+
   const handleCoverError = () => {
     if (track) setFailedCover(track.cover);
   };
@@ -1244,18 +1294,48 @@ export default function PortfolioClient() {
       <AsciiField />
       <main className="page page-intro">
         <header className="utility">
-          <div className="language-switch" role="group" aria-label={language === "pt" ? "Idioma" : "Language"}>
+          <div className="preference-switch theme-switch" data-pending={theme === null || undefined} role="group" aria-label={language === "pt" ? "Tema" : "Theme"}>
+            {(["light", "dark"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                data-theme-choice={option}
+                aria-label={option === "light"
+                  ? (language === "pt" ? "Tema claro" : "Light theme")
+                  : (language === "pt" ? "Tema escuro" : "Dark theme")}
+                aria-pressed={theme === option}
+                onClick={() => changeTheme(option)}
+              >
+                {theme === option && (
+                  <motion.span
+                    layoutId="theme-indicator"
+                    className="preference-indicator"
+                    transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 38 }}
+                  />
+                )}
+                <svg className="preference-label" aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  {option === "light" ? (
+                    <>
+                      <circle cx="12" cy="12" r="4" />
+                      <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19m0-14-1.5 1.5m-11 11L5 19" />
+                    </>
+                  ) : <path d="M20.5 14.4A8.7 8.7 0 0 1 9.6 3.5a8.7 8.7 0 1 0 10.9 10.9Z" />}
+                </svg>
+              </button>
+            ))}
+          </div>
+          <div className="preference-switch language-switch" role="group" aria-label={language === "pt" ? "Idioma" : "Language"}>
             <button type="button" onClick={() => changeLanguage("pt")} aria-pressed={language === "pt"}>
               {language === "pt" && (localeMotionReady
-                ? <motion.span layoutId="language-indicator" className="language-indicator" transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 38 }} />
-                : <span className="language-indicator" />)}
-              <span className="language-code">PT</span>
+                ? <motion.span layoutId="language-indicator" className="preference-indicator" transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 38 }} />
+                : <span className="preference-indicator" />)}
+              <span className="preference-label">PT</span>
             </button>
             <button type="button" onClick={() => changeLanguage("en")} aria-pressed={language === "en"}>
               {language === "en" && (localeMotionReady
-                ? <motion.span layoutId="language-indicator" className="language-indicator" transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 38 }} />
-                : <span className="language-indicator" />)}
-              <span className="language-code">EN</span>
+                ? <motion.span layoutId="language-indicator" className="preference-indicator" transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 38 }} />
+                : <span className="preference-indicator" />)}
+              <span className="preference-label">EN</span>
             </button>
           </div>
         </header>
@@ -1358,8 +1438,7 @@ export default function PortfolioClient() {
                         key={profileName}
                         text={profileName}
                         className="profile-name"
-                        encryptedClassName="text-neutral-500"
-                        revealedClassName="text-white"
+                        encryptedClassName="scrambled-text"
                         revealDelayMs={50}
                         flipDelayMs={50}
                         glitchIntervalMs={0}
@@ -1416,12 +1495,12 @@ export default function PortfolioClient() {
                 </div>
                 <h2 className="music-title">
                   {track
-                    ? <EncryptedText text={track.title} encryptedClassName="text-neutral-500" revealDelayMs={32} flipDelayMs={28} glitchIntervalMs={0} />
+                    ? <EncryptedText text={track.title} encryptedClassName="scrambled-text" revealDelayMs={32} flipDelayMs={28} glitchIntervalMs={0} />
                     : currentCopy.noRecentTrack}
                 </h2>
                 <p className="music-artist">
                   {track
-                    ? <EncryptedText text={track.artist} encryptedClassName="text-neutral-500" revealDelayMs={32} flipDelayMs={28} glitchIntervalMs={0} />
+                    ? <EncryptedText text={track.artist} encryptedClassName="scrambled-text" revealDelayMs={32} flipDelayMs={28} glitchIntervalMs={0} />
                     : currentCopy.noRecentArtist}
                 </p>
               </div>
