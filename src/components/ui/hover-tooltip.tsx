@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import type { FocusEvent, PointerEvent, ReactNode } from "react";
+import type { CSSProperties, FocusEvent, PointerEvent, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
@@ -10,6 +10,7 @@ type HoverTooltipProps = {
   label: string;
   children: ReactNode;
   className?: string;
+  style?: CSSProperties;
   href?: string;
   target?: string;
   rel?: string;
@@ -24,6 +25,7 @@ export function HoverTooltip({
   label,
   children,
   className,
+  style,
   href,
   target,
   rel,
@@ -92,6 +94,7 @@ export function HoverTooltip({
   const triggerProps = {
     ref: (node: HTMLElement | null) => { triggerRef.current = node; },
     className,
+    style,
     "aria-label": label,
     "aria-describedby": tooltipVisible ? tooltipId : undefined,
     "data-pressed": pressed ? "true" : undefined,

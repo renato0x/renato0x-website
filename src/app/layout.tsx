@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { themeBootstrap } from "@/lib/theme";
 import "./globals.css";
+import "./interactions.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://renatoox.vercel.app"),

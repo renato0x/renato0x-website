@@ -29,11 +29,20 @@ export function SpotlightCard(props: SpotlightCardProps) {
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
+    const magnetic = card.classList.contains("project-card");
 
     const isFocused = () => card.matches(":focus-within");
     const setActive = (active: boolean) => {
       card.dataset.spotlightActive = String(active);
     };
+    const resetDepth = () => {
+      if (card.dataset.magnetic !== "true") return;
+      delete card.dataset.magnetic;
+      for (const property of ["--card-x", "--card-y", "--card-rx", "--card-ry"]) {
+        card.style.removeProperty(property);
+      }
+    };
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
     const handlePointerMove = (event: PointerEvent) => {
       if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
@@ -46,35 +55,49 @@ export function SpotlightCard(props: SpotlightCardProps) {
       card.dataset.spotlightPointerNear = String(near);
 
       if (near) {
-        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (!reducedMotion.matches) {
           card.style.setProperty("--spotlight-x", `${closestX - bounds.left}px`);
           card.style.setProperty("--spotlight-y", `${closestY - bounds.top}px`);
+          if (magnetic && card.contains(event.target as Node)) {
+            const x = (closestX - bounds.left) / bounds.width * 2 - 1;
+            const y = (closestY - bounds.top) / bounds.height * 2 - 1;
+            card.style.setProperty("--card-x", `${x * 4}px`);
+            card.style.setProperty("--card-y", `${y * 3}px`);
+            card.style.setProperty("--card-rx", `${-y * 2.6}deg`);
+            card.style.setProperty("--card-ry", `${x * 3.2}deg`);
+            card.dataset.magnetic = "true";
+          } else resetDepth();
         }
         setActive(true);
       } else if (!isFocused()) {
         setActive(false);
       }
+      if (!near) resetDepth();
     };
 
     const handleWindowLeave = (event: PointerEvent) => {
       if (event.relatedTarget !== null) return;
       card.dataset.spotlightPointerNear = "false";
+      resetDepth();
       if (!isFocused()) setActive(false);
     };
 
     const handleWindowBlur = () => {
       card.dataset.spotlightPointerNear = "false";
+      resetDepth();
       if (!isFocused()) setActive(false);
     };
 
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
     window.addEventListener("pointerleave", handleWindowLeave);
     window.addEventListener("blur", handleWindowBlur);
+    reducedMotion.addEventListener("change", resetDepth);
 
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerleave", handleWindowLeave);
       window.removeEventListener("blur", handleWindowBlur);
+      reducedMotion.removeEventListener("change", resetDepth);
     };
   }, []);
 

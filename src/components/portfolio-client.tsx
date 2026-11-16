@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
-import { createPortal } from "react-dom";
+import type { CSSProperties, RefObject } from "react";
+import { createPortal, flushSync } from "react-dom";
 import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
 import { CodeLeafText } from "@/components/ui/code-leaf";
 import type { CodeLeafMark } from "@/components/ui/code-leaf";
 import { EncryptedText } from "@/components/ui/encrypted-text";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
-import { isTheme, lightThemeQuery, themeStorageKey } from "@/lib/theme";
+import { asciiIntroStorageKey, isTheme, lightThemeQuery, themeStorageKey } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
+import { PortfolioCursor } from "@/components/ui/portfolio-cursor";
+import { version as portfolioVersion } from "../../package.json";
 
 type Language = "pt" | "en";
 type ProjectName = "CashPad" | "Transcrypty" | "SUB-SEEMG";
@@ -302,7 +304,15 @@ async function getAuthorCommitCount(projectName: ProjectName, signal: AbortSigna
   return count;
 }
 
-function AsciiField() {
+type ThemeWave = { x: number; y: number; radius: number; startedAt: number };
+type IntroStage = "idle" | "assembling" | "dispersing" | "ready";
+const themeRevealDuration = 700;
+
+function AsciiField({ wave, repaint, onIntroStage }: {
+  wave: RefObject<ThemeWave | null>;
+  repaint: RefObject<(() => void) | null>;
+  onIntroStage: (stage: IntroStage) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerTargetX = useMotionValue(0);
   const pointerTargetY = useMotionValue(0);
@@ -340,6 +350,7 @@ function AsciiField() {
       { selector: ".profile-head, .socials", strength: 0.85, feather: 28 },
       { selector: ".music-card", strength: 0.84, feather: 20 },
       { selector: ".preference-switch", strength: 0.83, feather: 28 },
+      { selector: ".portfolio-status", strength: 0.82, feather: 16 },
     ];
     let contentMaskZones: Array<{ left: number; top: number; right: number; bottom: number; strength: number; feather: number }> = [];
     let time = 0;
@@ -358,11 +369,44 @@ function AsciiField() {
     let reduceMotion = motionQuery.matches;
     let finePointer = hoverQuery.matches;
     let lastWakePoint: { x: number; y: number; time: number } | null = null;
+    let introStarted = !reduceMotion && !document.hidden && root.dataset.asciiIntro === "pending" ? performance.now() : null;
+    let introDispersing = false;
+    let fieldElement: HTMLElement | null = null;
+    let fieldHovered = false;
+    let fieldStrength = 0;
+    let fieldStarted = 0;
+
+    if (introStarted !== null) {
+      root.dataset.asciiIntro = "assembling";
+      onIntroStage("assembling");
+      try { sessionStorage.setItem(asciiIntroStorageKey, "1"); } catch { /* The introduction can still run on this view. */ }
+    } else if (root.dataset.asciiIntro === "pending") {
+      delete root.dataset.asciiIntro;
+    }
+
+    const finishIntro = () => {
+      introStarted = null;
+      root.dataset.asciiIntro = "ready";
+      onIntroStage("ready");
+    };
 
     const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value));
     const smoothStep = (value: number) => {
       const normalized = clamp(value, 0, 1);
       return normalized * normalized * (3 - 2 * normalized);
+    };
+    const syncField = (event: PointerEvent) => {
+      if (reduceMotion || !finePointer || event.pointerType === "touch") return;
+      const target = event.target instanceof Element
+        ? event.target.closest<HTMLElement>(".project-card, .avatar-preview-trigger, .preference-switch button, .socials a, .stack-item, .code-leaf, .music-card, .portfolio-status a")
+        : null;
+      const newHover = target && (!fieldHovered || target !== fieldElement);
+      fieldHovered = target !== null;
+      if (newHover) {
+        if (target !== fieldElement) fieldStrength = 0;
+        fieldElement = target;
+        fieldStarted = performance.now();
+      }
     };
     const cellNoise = (column: number, row: number, variant = 0) => {
       const value = Math.sin(column * 127.1 + row * 311.7 + variant * 74.7) * 43758.5453123;
@@ -448,6 +492,7 @@ function AsciiField() {
       parallaxY: number,
       stormNodes: ActiveStormNode[],
       intensity: number,
+      spread: number,
     ) => {
       const stepX = width < 760 ? 25 : 20;
       const stepY = width < 760 ? 24 : 20;
@@ -496,9 +541,11 @@ function AsciiField() {
             (1 + stormBoost * 0.55) * intensity;
           if (alpha < 0.04) continue;
 
-          context.globalAlpha = Math.min(0.32, alpha);
+          context.globalAlpha = Math.min(0.32, alpha) * (0.25 + 0.75 * spread);
           context.font = glyph === ":" ? "12px ui-monospace,monospace" : "11px ui-monospace,monospace";
-          context.fillText(glyph, maskedX, maskedY);
+          context.fillText(glyph,
+            spread < 1 ? width / 2 + (maskedX - width / 2) * spread : maskedX,
+            spread < 1 ? height / 2 + (maskedY - height / 2) * spread : maskedY);
         }
       }
     };
@@ -562,6 +609,8 @@ function AsciiField() {
 
     const handlePointerDown = (event: PointerEvent) => {
       if (reduceMotion) return;
+      if (typeof document.startViewTransition === "function" && event.target instanceof Element &&
+          event.target.closest('.theme-switch button[aria-pressed="false"]')) return;
 
       const bounds = canvas.getBoundingClientRect();
       clickPulses.push({
@@ -655,6 +704,37 @@ function AsciiField() {
       context.font = palette.cloudFont;
       context.textBaseline = "middle";
 
+      const now = performance.now();
+      let spread = 1;
+      if (introStarted !== null) {
+        const elapsed = now - introStarted;
+        const progress = clamp((elapsed - 130) / 650, 0, 1);
+        spread = 0.075 + 0.925 * (1 - (1 - progress) ** 2.6);
+        if (progress >= 0.45 && !introDispersing) {
+          root.dataset.asciiIntro = "dispersing";
+          onIntroStage("dispersing");
+          introDispersing = true;
+        }
+        if (progress === 1) finishIntro();
+      }
+      fieldStrength += ((fieldHovered && !reduceMotion ? 1 : 0) - fieldStrength) * (1 - Math.exp(-delta / 105));
+      const fieldIsAvatar = fieldElement?.classList.contains("avatar-preview-trigger");
+      const fieldIsCard = fieldElement?.classList.contains("project-card");
+      const avatarGlitch = fieldIsAvatar ? 1 - smoothStep((now - fieldStarted) / 420) : 0;
+      const field = fieldStrength > 0.015 && (!fieldIsAvatar || avatarGlitch > 0)
+        ? fieldElement?.getBoundingClientRect() : undefined;
+      const fieldCanvas = field || wave.current ? canvas.getBoundingClientRect() : null;
+      const fieldLeft = (field?.left ?? 0) - (fieldCanvas?.left ?? 0);
+      const fieldTop = (field?.top ?? 0) - (fieldCanvas?.top ?? 0);
+      const fieldRight = fieldLeft + (field?.width ?? 0);
+      const fieldBottom = fieldTop + (field?.height ?? 0);
+      const fieldRange = fieldIsCard ? 61 : fieldIsAvatar ? 56 : 26;
+      const activeWave = reduceMotion ? null : wave.current;
+      const waveProgress = activeWave ? clamp((now - activeWave.startedAt) / themeRevealDuration, 0, 1) : 1;
+      const waveRadius = waveProgress * (activeWave?.radius ?? 0);
+      const waveX = (activeWave?.x ?? 0) - (fieldCanvas?.left ?? 0);
+      const waveY = (activeWave?.y ?? 0) - (fieldCanvas?.top ?? 0);
+
       const intensity = compactQuery.matches ? 0.84 : 1;
       const parallaxX = reduceMotion || !finePointer ? 0 : pointerX.get();
       const parallaxY = reduceMotion || !finePointer ? 0 : pointerY.get();
@@ -694,7 +774,6 @@ function AsciiField() {
       }
       const stormFlow = stormElapsed * (Math.PI * 2 / 7_600);
       const stormCrossFlow = stormElapsed * (Math.PI * 2 / 11_000);
-      const now = performance.now();
       while (wake.length && now - wake[0].time > 1050) wake.shift();
       while (clickPulses.length && now - clickPulses[0].startedAt >= 900) clickPulses.shift();
       const activeClickPulses = clickPulses.map(({ x, y, startedAt }) => {
@@ -724,7 +803,26 @@ function AsciiField() {
           const ny = (y / height - 0.5) * 2;
           for (let x = 8; x < width; x += 10) {
             const nx = (x / width - 0.5) * 2;
-            const value = getFieldValue(x, y, nx, ny);
+            let influence = 0;
+            let fieldOffsetX = 0;
+            let fieldOffsetY = 0;
+            if (field && x > fieldLeft - fieldRange && x < fieldRight + fieldRange && y > fieldTop - fieldRange && y < fieldBottom + fieldRange) {
+              const dx = x - clamp(x, fieldLeft, fieldRight);
+              const dy = y - clamp(y, fieldTop, fieldBottom);
+              const distance = Math.hypot(dx, dy);
+              influence = smoothStep(1 - distance / fieldRange) * fieldStrength * (fieldIsCard ? 0.78 : fieldIsAvatar ? avatarGlitch : 0.28);
+              fieldOffsetX = (Math.sign(dx) * (fieldIsCard ? 7 : 4) + Math.sin(y * 0.35 + time * 25) * avatarGlitch * 9) * influence;
+              fieldOffsetY = Math.sign(dy) * 5 * influence;
+            }
+            if (activeWave && waveProgress < 1) {
+              const distance = Math.hypot(x - waveX, y - waveY);
+              const ripple = smoothStep(1 - Math.abs(distance - waveRadius + 12) / 42) * (1 - waveProgress * 0.55);
+              influence = Math.max(influence, ripple * 0.7);
+              const radial = ripple * 7 / Math.max(1, distance);
+              fieldOffsetX += (x - waveX) * radial;
+              fieldOffsetY += (y - waveY) * radial;
+            }
+            const value = getFieldValue(x, y, nx, ny) + influence * 0.15;
             const stormFront = getStormFront(nx, ny, stormFlow, stormCrossFlow);
             let trail = 0;
             let flash = 0;
@@ -793,23 +891,23 @@ function AsciiField() {
               const offsetY = Math.round(-parallaxY * depth * 3);
               const ambient = cloud * 0.47 + crest * 0.23;
               const response = Math.max(trail * 0.37, flash * 0.35, clickPulse * 0.62);
-              const renderedX = x + offsetX;
-              const renderedY = y + offsetY;
+              const renderedX = x + offsetX + fieldOffsetX;
+              const renderedY = y + offsetY + fieldOffsetY;
 
-              const alpha = Math.min(0.68, (ambient + response) * palette.cloudContrast) * contentMask(renderedX, renderedY) * intensity;
+              const alpha = Math.min(0.68, (ambient + response + influence * 0.15) * palette.cloudContrast) * contentMask(renderedX, renderedY) * intensity;
               if (alpha < 0.008) continue;
 
-              context.globalAlpha = alpha;
+              context.globalAlpha = alpha * (0.25 + 0.75 * spread);
               context.fillText(
                 chars[Math.floor(density * (chars.length - 1))],
-                renderedX,
-                renderedY,
+                spread < 1 ? width / 2 + (renderedX - width / 2) * spread + Math.sin(y * 0.075 + time * 8) * (1 - spread) * 11 : renderedX,
+                spread < 1 ? height / 2 + (renderedY - height / 2) * spread : renderedY,
               );
             }
           }
         }
 
-        drawGranularDots(parallaxX, parallaxY, activeStormNodes, intensity);
+        drawGranularDots(parallaxX, parallaxY, activeStormNodes, intensity, spread);
       }
 
       context.globalAlpha = 1;
@@ -830,6 +928,9 @@ function AsciiField() {
     const handleMotionPreference = (event: MediaQueryListEvent) => {
       reduceMotion = event.matches;
       if (reduceMotion) {
+        if (introStarted !== null) finishIntro();
+        fieldHovered = false;
+        fieldStrength = 0;
         stormFlash = null;
         nextStormFlashAt = stormElapsed + nextStormInterval();
         clearWake();
@@ -855,6 +956,11 @@ function AsciiField() {
       palette = readPalette();
       if (reduceMotion && !document.hidden) draw();
     });
+    repaint.current = () => {
+      palette = readPalette();
+      window.cancelAnimationFrame(frame);
+      draw();
+    };
 
     resizeObserver.observe(canvas);
     paletteObserver.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
@@ -862,6 +968,10 @@ function AsciiField() {
     document.querySelectorAll<HTMLElement>(layoutTargets).forEach((element) => layoutObserver.observe(element));
     refreshContentMask();
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("pointerover", syncField, { passive: true });
+    const clearField = () => { fieldHovered = false; };
+    window.addEventListener("pointerleave", clearField);
+    window.addEventListener("blur", clearField);
     window.addEventListener("pointerdown", handlePointerDown, { passive: true });
     window.addEventListener("pointerleave", resetParallax);
     window.addEventListener("scroll", updateContentMask, { passive: true });
@@ -871,11 +981,15 @@ function AsciiField() {
     draw();
 
     return () => {
+      repaint.current = null;
       window.cancelAnimationFrame(frame);
       resizeObserver.disconnect();
       layoutObserver.disconnect();
       paletteObserver.disconnect();
       window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerover", syncField);
+      window.removeEventListener("pointerleave", clearField);
+      window.removeEventListener("blur", clearField);
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("pointerleave", resetParallax);
       window.removeEventListener("scroll", updateContentMask);
@@ -883,7 +997,7 @@ function AsciiField() {
       motionQuery.removeEventListener("change", handleMotionPreference);
       hoverQuery.removeEventListener("change", handleHoverPreference);
     };
-  }, [pointerTargetX, pointerTargetY, pointerX, pointerY]);
+  }, [pointerTargetX, pointerTargetY, pointerX, pointerY, wave, repaint, onIntroStage]);
 
   return <canvas ref={canvasRef} className="ascii-field" aria-hidden="true" />;
 }
@@ -968,11 +1082,14 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
         ref={triggerRef}
         type="button"
         className="avatar-preview-trigger"
+        style={{ "--avatar-image": `url(${src})` } as CSSProperties}
         aria-label={label}
         aria-controls="profile-photo-preview"
         aria-expanded={isOpen}
         onPointerEnter={(event) => {
-          if (event.pointerType !== "touch") openPreview(event.currentTarget);
+          if (event.pointerType === "touch") return;
+          event.currentTarget.dataset.portraitHover = "true";
+          openPreview(event.currentTarget);
         }}
         onPointerMove={(event) => {
           if (!isOpen || reduceMotion || event.pointerType === "touch") return;
@@ -984,6 +1101,7 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
           rotate.set(horizontal * 3);
         }}
         onPointerLeave={(event) => {
+          delete event.currentTarget.dataset.portraitHover;
           x.set(0);
           y.set(0);
           rotate.set(0);
@@ -1022,6 +1140,10 @@ export default function PortfolioClient() {
   const [language, setLanguage] = useState<Language>("en");
   const [theme, setTheme] = useState<Theme | null>(null);
   const manualTheme = useRef<Theme | null>(null);
+  const themeTransition = useRef<ViewTransition | null>(null);
+  const wave = useRef<ThemeWave | null>(null);
+  const repaint = useRef<(() => void) | null>(null);
+  const [introStage, setIntroStage] = useState<IntroStage>("idle");
   const [localeMotionReady, setLocaleMotionReady] = useState(false);
   const [localeTransitionId, setLocaleTransitionId] = useState(0);
   const reduceMotion = useReducedMotion();
@@ -1249,15 +1371,53 @@ export default function PortfolioClient() {
     }
   };
 
-  const changeTheme = (next: Theme) => {
+  const changeTheme = (next: Theme, trigger: HTMLButtonElement) => {
+    const root = document.documentElement;
+    const current = manualTheme.current ?? root.dataset.theme;
     manualTheme.current = next;
-    document.documentElement.dataset.theme = next;
-    setTheme(next);
     try {
       window.localStorage.setItem(themeStorageKey, next);
     } catch {
       // The current page can still use the selected theme.
     }
+    if (current === next) return;
+
+    const apply = () => {
+      root.dataset.theme = next;
+      setTheme(next);
+    };
+    if (reduceMotion || document.hidden || !document.startViewTransition || themeTransition.current) {
+      themeTransition.current?.skipTransition();
+      wave.current = null;
+      apply();
+      return;
+    }
+
+    const bounds = trigger.getBoundingClientRect();
+    const x = bounds.left + bounds.width / 2;
+    const y = bounds.top + bounds.height / 2;
+    const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    root.style.setProperty("--theme-x", `${x}px`);
+    root.style.setProperty("--theme-y", `${y}px`);
+    root.style.setProperty("--theme-radius", `${radius}px`);
+    root.style.setProperty("--theme-duration", `${themeRevealDuration}ms`);
+    root.dataset.themeWave = "active";
+
+    const transition = document.startViewTransition(() => {
+      if (manualTheme.current !== next) return;
+      flushSync(apply);
+      repaint.current?.();
+    });
+    themeTransition.current = transition;
+    void transition.ready.then(() => {
+      if (manualTheme.current === next) wave.current = { x, y, radius, startedAt: performance.now() };
+    }, () => {});
+    const finish = () => {
+      themeTransition.current = null;
+      wave.current = null;
+      delete root.dataset.themeWave;
+    };
+    void transition.finished.then(finish, finish);
   };
 
   const handleCoverError = () => {
@@ -1271,10 +1431,22 @@ export default function PortfolioClient() {
   const socialLinksLabel = currentCopy.socialLinks;
   const isPlaying = track?.source === "spotify" || track?.source === "discord";
   const [bioLead, bioRest] = currentCopy.bio;
+  const assembling = introStage === "assembling" || introStage === "dispersing";
+  const launchMessages = language === "pt"
+    ? ["Tema aplicado", "Montando o fundo ASCII", "Interface pronta"]
+    : ["Theme applied", "Assembling ASCII background", "Interface ready"];
 
   return (
     <>
-      <AsciiField />
+      <AsciiField wave={wave} repaint={repaint} onIntroStage={setIntroStage} />
+      <PortfolioCursor />
+      {introStage !== "idle" && (
+        <div className="launch-log" data-stage={introStage} aria-hidden="true">
+          <span>[OK] {launchMessages[0]}</span>
+          {introStage !== "assembling" && <span>[{assembling ? "··" : "OK"}] {launchMessages[1]}</span>}
+          {!assembling && <span>[OK] {launchMessages[2]}</span>}
+        </div>
+      )}
       <main className="page page-intro" aria-label={currentCopy.content}>
         <header className="utility">
           <div className="preference-switch theme-switch" data-pending={theme === null || undefined} role="group" aria-label={language === "pt" ? "Tema" : "Theme"}>
@@ -1287,7 +1459,7 @@ export default function PortfolioClient() {
                   ? (language === "pt" ? "Tema claro" : "Light theme")
                   : (language === "pt" ? "Tema escuro" : "Dark theme")}
                 aria-pressed={theme === option}
-                onClick={() => changeTheme(option)}
+                onClick={(event) => changeTheme(option, event.currentTarget)}
               >
                 {theme === option && (
                   <motion.span
@@ -1448,8 +1620,8 @@ export default function PortfolioClient() {
           <section className="stacks" aria-label={technologiesLabel}>
             <span className="entry-ascii entry-ascii--stacks" aria-hidden="true">.:=+*#@</span>
             <ul className="stack-row" role="list" aria-label={currentCopy.technologyList}>
-              {stackItems.map(([name, image]) => (
-                <HoverTooltip as="li" className="stack-item" label={name} key={name}>
+              {stackItems.map(([name, image], index) => (
+                <HoverTooltip as="li" className="stack-item" label={name} key={name} style={{ "--stack-index": index } as CSSProperties}>
                   <img src={image} alt="" width="18" height="18" />
                 </HoverTooltip>
               ))}
@@ -1493,6 +1665,19 @@ export default function PortfolioClient() {
               </p>
             </div>
           </SpotlightCard>
+          <footer className="portfolio-status" aria-label={language === "pt" ? "Status do portfólio" : "Portfolio status"}>
+            <span className="portfolio-status-state" role="status">
+              <span aria-hidden="true">●</span>{" "}
+              {assembling ? (language === "pt" ? "iniciando" : "starting") : (language === "pt" ? "sistema pronto" : "system ready")}
+            </span>
+            <span>v{portfolioVersion}</span>
+            <span>UTF-8</span>
+            <a href="https://github.com/renato0x/renato0x-website" target="_blank" rel="noopener noreferrer">
+              <span className="status-chevron" aria-hidden="true">&gt;</span>{" "}
+              {language === "pt" ? "ver repositório" : "view repository"}{" "}
+              <span aria-hidden="true">↗</span>
+            </a>
+          </footer>
         </div>
       </main>
     </>
