@@ -967,7 +967,7 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
       }}
       aria-hidden="true"
     >
-      <img src={src} alt="" width="320" height="320" draggable={false} />
+      <img src={src} alt="" width="360" height="480" draggable={false} />
     </motion.div>,
     document.body,
   ) : null;
@@ -1032,7 +1032,7 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
           }
         }}
       >
-        <img className="avatar" src={src} alt="" width="256" height="256" />
+        <img className="avatar" src={src} alt="" width="360" height="480" />
       </button>
       {preview}
     </>
@@ -1431,7 +1431,7 @@ export default function PortfolioClient() {
             <span className="entry-ascii entry-ascii--profile" aria-hidden="true">.:=+*#@</span>
             <div className="profile-head">
               <ProfilePhotoHoverPreview
-                src="/assets/renato-github.webp"
+                src="/assets/renato0x.jpeg"
                 label={language === "pt" ? "Prévia da foto de perfil de Renato Monteiro" : "Preview Renato Monteiro's profile photo"}
               />
               <div className="profile-details">
