@@ -29,7 +29,6 @@ export function SpotlightCard(props: SpotlightCardProps) {
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
-    const magnetic = card.classList.contains("project-card");
 
     const isFocused = () => card.matches(":focus-within");
     const setActive = (active: boolean) => {
@@ -58,7 +57,7 @@ export function SpotlightCard(props: SpotlightCardProps) {
         if (!reducedMotion.matches) {
           card.style.setProperty("--spotlight-x", `${closestX - bounds.left}px`);
           card.style.setProperty("--spotlight-y", `${closestY - bounds.top}px`);
-          if (magnetic && card.contains(event.target as Node)) {
+          if (card.contains(event.target as Node)) {
             const x = (closestX - bounds.left) / bounds.width * 2 - 1;
             const y = (closestY - bounds.top) / bounds.height * 2 - 1;
             card.style.setProperty("--card-x", `${x * 4}px`);

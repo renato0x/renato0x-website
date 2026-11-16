@@ -289,8 +289,9 @@ button { font: inherit; }
 
 @media (max-width: 770px) {
   .page { --page-content-gap: 19.8px; padding: 17.6px 17.6px calc(18px + env(safe-area-inset-bottom)); }
-  .preference-switch { gap: 2.2px; padding: 2.2px; }
-  .preference-switch button { min-width: 37.4px; min-height: 37.4px; padding: 4.4px 7.7px; }
+  .preference-switch { gap: 2px; padding: 2px; }
+  .preference-switch button { min-width: 31px; min-height: 31px; padding: 4px 6px; font-size: 10.5px; }
+  .theme-switch svg { width: 14px; height: 14px; }
   .stack-row { grid-template-columns: repeat(9, minmax(0, 38.5px)); justify-content: space-between; gap: clamp(4.4px, 1.25vw, 7.7px); }
   .stack-item { height: auto; aspect-ratio: 1; }
   .page-intro .profile-column { animation-delay: .04s; }

@@ -48,8 +48,8 @@ export function PortfolioCursor() {
         return;
       }
 
-      const interactive = target.closest("a, button, .stack-item, [role=button]");
-      if (!interactive && target.closest("p, h1, h2, h3, .profile-name-wrap, .project-copy, .music-info")) {
+      const interactive = target.closest("a, button, .spotlight-card, .stack-item, [role=button]");
+      if (!interactive && target.closest("p, h1, h2, h3, .profile-name-wrap")) {
         hide();
         return;
       }
@@ -61,7 +61,7 @@ export function PortfolioCursor() {
         ringX = x;
         ringY = y;
       }
-      const state = interactive?.classList.contains("project-card") ? "card"
+      const state = interactive?.classList.contains("spotlight-card") ? "card"
         : interactive?.classList.contains("avatar-preview-trigger") ? "avatar"
         : interactive ? "control" : "default";
       if (cursor.dataset.state !== state) cursor.dataset.state = state;

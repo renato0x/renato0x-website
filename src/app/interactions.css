@@ -33,7 +33,7 @@
 @media (any-hover: hover) and (any-pointer: fine) and (prefers-reduced-motion: no-preference) {
   .avatar-preview-trigger[data-portrait-hover]::before { animation: portrait-slice .42s steps(1) both; }
   .avatar-preview-trigger[data-portrait-hover]::after { animation: portrait-slice .42s steps(1) -35ms reverse both; }
-  .project-card[data-magnetic="true"] {
+  .spotlight-card[data-magnetic="true"] {
     transform: perspective(720px) translate3d(var(--card-x, 0px), var(--card-y, 0px), 0) rotateX(var(--card-rx, 0deg)) rotateY(var(--card-ry, 0deg));
     transition-duration: .14s, .14s, .26s, .28s, .28s;
     will-change: transform;
@@ -69,14 +69,14 @@
 @keyframes intro-drift { from { opacity: 0; translate: 0 5px; } to { opacity: 1; translate: 0 0; } }
 @keyframes intro-copy { from { opacity: 0; } to { opacity: 1; } }
 
-.portfolio-status { align-self: end; width: min(1135.2px, 100%); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 15px; margin: clamp(22px, 3vw, 34px) auto 0; padding-top: 9px; border-top: 1px solid var(--line); color: var(--muted); font: 10px/1.45 var(--mono); }
+.portfolio-status { align-self: end; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin-top: clamp(22px, 3vw, 34px); color: var(--muted); font: 10px/1.45 var(--mono); }
+.portfolio-status-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px clamp(8px, 1.5vw, 15px); }
 .portfolio-status-state > span { font-size: 8px; color: var(--soft); }
 .portfolio-status a { display: inline-flex; align-items: center; gap: .45em; margin-inline-start: auto; padding-block: 5px; color: var(--muted); text-decoration: none; }
 .portfolio-status a:hover, .portfolio-status a:focus-visible { color: var(--ink); }
 .portfolio-status a:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .status-chevron { transition: transform .2s ease; }
 .portfolio-status a:hover .status-chevron, .portfolio-status a:focus-visible .status-chevron { transform: translateX(-2px); }
-@media (max-width: 360px) { .portfolio-status a { margin-inline-start: 0; } }
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme-wave]::view-transition-new(root) { animation: none; }
   .portfolio-cursor, .launch-log { display: none; }

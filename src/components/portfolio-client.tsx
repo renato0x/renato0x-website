@@ -351,7 +351,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
       { selector: ".profile-head, .socials", strength: 0.85, feather: 28 },
       { selector: ".music-card", strength: 0.84, feather: 20 },
       { selector: ".preference-switch", strength: 0.83, feather: 28 },
-      { selector: ".portfolio-status", strength: 0.82, feather: 16 },
+      { selector: ".portfolio-status-meta, .portfolio-status a", strength: 0.82, feather: 16 },
     ];
     let contentMaskZones: Array<{ left: number; top: number; right: number; bottom: number; strength: number; feather: number }> = [];
     let time = 0;
@@ -399,7 +399,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
     const syncField = (event: PointerEvent) => {
       if (reduceMotion || !finePointer || event.pointerType === "touch") return;
       const target = event.target instanceof Element
-        ? event.target.closest<HTMLElement>(".project-card, .avatar-preview-trigger, .preference-switch button, .socials a, .stack-item, .code-leaf, .music-card, .portfolio-status a")
+        ? event.target.closest<HTMLElement>(".spotlight-card, .avatar-preview-trigger, .preference-switch button, .socials a, .stack-item, .code-leaf, .portfolio-status a")
         : null;
       const newHover = target && (!fieldHovered || target !== fieldElement);
       fieldHovered = target !== null;
@@ -723,7 +723,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
       }
       fieldStrength += ((fieldHovered && !reduceMotion ? 1 : 0) - fieldStrength) * (1 - Math.exp(-delta / 105));
       const fieldIsAvatar = fieldElement?.classList.contains("avatar-preview-trigger");
-      const fieldIsCard = fieldElement?.classList.contains("project-card");
+      const fieldIsCard = fieldElement?.classList.contains("spotlight-card");
       const avatarGlitch = fieldIsAvatar ? 1 - smoothStep((now - fieldStarted) / 420) : 0;
       const field = fieldStrength > 0.015 && (!fieldIsAvatar || avatarGlitch > 0)
         ? fieldElement?.getBoundingClientRect() : undefined;
@@ -808,6 +808,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
           for (let x = 8; x < width; x += 10) {
             const nx = (x / width - 0.5) * 2;
             let influence = 0;
+            let cardInk = 0;
             let fieldOffsetX = 0;
             let fieldOffsetY = 0;
             if (field && x > fieldLeft - fieldRange && x < fieldRight + fieldRange && y > fieldTop - fieldRange && y < fieldBottom + fieldRange) {
@@ -815,6 +816,12 @@ function AsciiField({ wave, repaint, onIntroStage }: {
               const dy = y - clamp(y, fieldTop, fieldBottom);
               const distance = Math.hypot(dx, dy);
               influence = smoothStep(1 - distance / fieldRange) * fieldStrength * (fieldIsCard ? 0.78 : fieldIsAvatar ? avatarGlitch : 0.28);
+              // Seed the outside edge even when the ambient cloud has no glyph at this cell.
+              if (fieldIsCard && distance > 0 && distance < 48) {
+                const seed = cellNoise(x, y, 8);
+                const edge = smoothStep(distance / 10) * smoothStep(1 - distance / 48);
+                cardInk = fieldStrength * edge * smoothStep((seed - 0.18) / 0.62);
+              }
               fieldOffsetX = (Math.sign(dx) * (fieldIsCard ? 7 : 4) + Math.sin(y * 0.35 + time * 25) * avatarGlitch * 9) * influence;
               fieldOffsetY = Math.sign(dy) * 5 * influence;
             }
@@ -885,11 +892,11 @@ function AsciiField({ wave, repaint, onIntroStage }: {
 
             const threshold = 0.14 - stormFront * 0.065 - flash * 0.15 - trail * 0.25 - clickPulse * 0.22;
 
-            if (value > threshold || trail > 0.08 || clickPulse > 0.08) {
+            if (value > threshold || trail > 0.08 || clickPulse > 0.08 || cardInk > 0.055) {
               const cloudDepth = clamp((value - threshold) / (1 - threshold), 0, 1);
               const cloud = smoothStep(cloudDepth) * 0.68 + cloudDepth * 0.32;
               const crest = cloud * stormFront;
-              const density = clamp(0.12 + cloud * 0.72 + crest * 0.14 + trail * 0.76 + flash * 0.23 + clickPulse * 0.48, 0, 1);
+              const density = clamp(0.12 + cloud * 0.72 + crest * 0.14 + trail * 0.76 + flash * 0.23 + clickPulse * 0.48 + cardInk * 0.5, 0, 1);
               const depth = 0.42 + (1 - Math.min(Math.hypot(nx, ny), 1)) * 0.72;
               const offsetX = Math.round(-parallaxX * depth * 4);
               const offsetY = Math.round(-parallaxY * depth * 3);
@@ -898,7 +905,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
               const renderedX = x + offsetX + fieldOffsetX;
               const renderedY = y + offsetY + fieldOffsetY;
 
-              const alpha = Math.min(0.68, (ambient + response + influence * 0.15) * palette.cloudContrast) * contentMask(renderedX, renderedY) * intensity;
+              const alpha = Math.min(0.68, (ambient + response + influence * 0.15 + cardInk * 0.31) * palette.cloudContrast) * contentMask(renderedX, renderedY) * intensity;
               if (alpha < 0.008) continue;
 
               context.globalAlpha = alpha * (0.25 + 0.75 * spread);
@@ -1673,12 +1680,14 @@ export default function PortfolioClient() {
           </SpotlightCard>
         </div>
         <footer className="portfolio-status" aria-label={language === "pt" ? "Status do portfólio" : "Portfolio status"}>
-          <span className="portfolio-status-state" role="status">
-            <span aria-hidden="true">●</span>{" "}
-            {assembling ? (language === "pt" ? "iniciando" : "starting") : (language === "pt" ? "sistema pronto" : "system ready")}
-          </span>
-          <span>v{portfolioVersion}</span>
-          <span>UTF-8</span>
+          <div className="portfolio-status-meta">
+            <span className="portfolio-status-state" role="status">
+              <span aria-hidden="true">●</span>{" "}
+              {assembling ? (language === "pt" ? "iniciando" : "starting") : (language === "pt" ? "sistema pronto" : "system ready")}
+            </span>
+            <span>v{portfolioVersion}</span>
+            <span>UTF-8</span>
+          </div>
           <a href="https://github.com/renato0x/renato0x-website" target="_blank" rel="noopener noreferrer">
             <span className="status-chevron" aria-hidden="true">&gt;</span>{" "}
             {language === "pt" ? "ver repositório" : "view repository"}{" "}
