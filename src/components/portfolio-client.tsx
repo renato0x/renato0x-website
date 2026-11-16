@@ -320,6 +320,8 @@ function AsciiField() {
       return {
         cloud: style.getPropertyValue("--ascii-cloud").trim(),
         grain: style.getPropertyValue("--ascii-grain").trim(),
+        cloudFont: style.getPropertyValue("--ascii-cloud-font").trim(),
+        cloudContrast: Number(style.getPropertyValue("--ascii-cloud-contrast")) || 1,
       };
     };
     let palette = readPalette();
@@ -649,7 +651,7 @@ function AsciiField() {
 
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
-      context.font = "10px ui-monospace,monospace";
+      context.font = palette.cloudFont;
       context.textBaseline = "middle";
 
       const intensity = compactQuery.matches ? 0.84 : 1;
@@ -789,7 +791,7 @@ function AsciiField() {
               const renderedX = x + offsetX;
               const renderedY = y + offsetY;
 
-              const alpha = Math.min(0.68, ambient + response) * contentMask(renderedX, renderedY) * intensity;
+              const alpha = Math.min(0.68, (ambient + response) * palette.cloudContrast) * contentMask(renderedX, renderedY) * intensity;
               if (alpha < 0.008) continue;
 
               context.globalAlpha = alpha;
