@@ -317,6 +317,7 @@ function AsciiField() {
     const chars = " .,:;-=+*#%@";
     const dotChars = ".:";
     const wake: Array<{ x: number; y: number; time: number; energy: number }> = [];
+    const clickPulses: Array<{ x: number; y: number; startedAt: number }> = [];
     const maskTargets: Array<{ selector: string; strength: number; feather: number }> = [
       { selector: ".bio-block", strength: 0.72, feather: 42 },
       { selector: ".stacks", strength: 0.36, feather: 30 },
@@ -541,6 +542,18 @@ function AsciiField() {
       lastWakePoint = null;
     };
 
+    const handlePointerDown = (event: PointerEvent) => {
+      if (reduceMotion) return;
+
+      const bounds = canvas.getBoundingClientRect();
+      clickPulses.push({
+        x: event.clientX - bounds.left,
+        y: event.clientY - bounds.top,
+        startedAt: performance.now(),
+      });
+      if (clickPulses.length > 3) clickPulses.shift();
+    };
+
     const handlePointerMove = (event: PointerEvent) => {
       if (!finePointer || event.pointerType === "touch") return;
 
@@ -663,6 +676,7 @@ function AsciiField() {
       const stormCrossFlow = stormElapsed * (Math.PI * 2 / 13_000);
       const now = performance.now();
       while (wake.length && now - wake[0].time > 1050) wake.shift();
+      while (clickPulses.length && now - clickPulses[0].startedAt >= 900) clickPulses.shift();
       let wakeLeft = Infinity;
       let wakeRight = -Infinity;
       let wakeTop = Infinity;
@@ -688,6 +702,7 @@ function AsciiField() {
             const stormFront = getStormFront(nx, ny, stormFlow, stormCrossFlow);
             let trail = 0;
             let flash = 0;
+            let clickPulse = 0;
 
             for (const stormNode of activeStormNodes) {
               const dx = x - stormNode.x;
@@ -699,6 +714,21 @@ function AsciiField() {
                 const cloudAffinity = Math.max(0, Math.min(1, (value - 0.12) / 0.38));
                 flash = Math.max(flash, falloff * falloff * stormNode.envelope * cloudAffinity);
               }
+            }
+
+            for (const pulse of clickPulses) {
+              const progress = (now - pulse.startedAt) / 900;
+              const dx = x - pulse.x;
+              const dy = y - pulse.y;
+              const angle = Math.atan2(dy, dx);
+              const edge = 1 + Math.sin(angle * 5 + time * 2) * 0.11 + Math.cos(angle * 9 - time) * 0.07;
+              const radius = (28 + progress * Math.min(width, height) * 0.28) * edge;
+              const distance = Math.hypot(dx, dy);
+              if (distance >= radius) continue;
+
+              const spatial = smoothStep(1 - distance / radius);
+              const envelope = Math.sin(Math.PI * progress);
+              clickPulse = Math.max(clickPulse, spatial * envelope);
             }
 
             if (
@@ -725,16 +755,16 @@ function AsciiField() {
               }
             }
 
-            const threshold = 0.36 - trail * 0.25 - stormFront * 0.052 - flash * 0.12;
+            const threshold = 0.36 - trail * 0.25 - stormFront * 0.052 - flash * 0.12 - clickPulse * 0.22;
 
-            if ((value > threshold || trail > 0.08) && radius < 1.45) {
-              const density = Math.max(0, Math.min(1, (value - threshold) / (1 - threshold) + trail * 1.05 + stormFront * 0.08 + flash * 0.22));
+            if ((value > threshold || trail > 0.08 || clickPulse > 0.08) && (radius < 1.45 || clickPulse > 0.08)) {
+              const density = Math.max(0, Math.min(1, (value - threshold) / (1 - threshold) + trail * 1.05 + stormFront * 0.08 + flash * 0.22 + clickPulse * 0.5));
               const depth = 0.42 + (1 - Math.min(radius, 1)) * 0.72;
               const offsetX = Math.round(-parallaxX * depth * 4);
               const offsetY = Math.round(-parallaxY * depth * 3);
               const pulsePhase = (stormElapsed / 7_000) * Math.PI * 2 + nx * 2.6 - ny * 1.8;
               const pulse = reduceMotion ? 0 : (Math.sin(pulsePhase) + 1) * 0.5;
-              const alpha = 0.06 + Math.max(0, value - threshold) * 0.12 + trail * 0.68 + stormFront * 0.08 + pulse * 0.035 + flash * 0.18;
+              const alpha = 0.06 + Math.max(0, value - threshold) * 0.12 + trail * 0.68 + stormFront * 0.08 + pulse * 0.035 + flash * 0.18 + clickPulse * 0.32;
               const renderedX = x + offsetX;
               const renderedY = y + offsetY;
 
@@ -769,6 +799,7 @@ function AsciiField() {
         stormFlash = null;
         nextStormFlashAt = stormElapsed + nextStormInterval();
         clearWake();
+        clickPulses.length = 0;
         resetParallax();
       }
       window.cancelAnimationFrame(frame);
@@ -791,6 +822,7 @@ function AsciiField() {
     document.querySelectorAll<HTMLElement>(".content-layout, .utility, .bio-block, .stacks, .projects, .profile-column").forEach((element) => layoutObserver.observe(element));
     refreshContentMask();
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("pointerdown", handlePointerDown, { passive: true });
     window.addEventListener("pointerleave", resetParallax);
     document.addEventListener("visibilitychange", handleVisibility);
     motionQuery.addEventListener("change", handleMotionPreference);
@@ -802,6 +834,7 @@ function AsciiField() {
       resizeObserver.disconnect();
       layoutObserver.disconnect();
       window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("pointerleave", resetParallax);
       document.removeEventListener("visibilitychange", handleVisibility);
       motionQuery.removeEventListener("change", handleMotionPreference);
