@@ -16,34 +16,37 @@ function pulseRandom(trackKey: string) {
   };
 }
 
-function pulseSequence(random: () => number, startScale: number) {
-  const easing = "cubic-bezier(.42,0,.58,1)";
-  const frames: (Keyframe & { offset: number })[] = [{ offset: 0, scale: String(startScale), easing }];
+function pulseSequence(random: () => number) {
+  const easing = "cubic-bezier(.3,0,.7,1)";
+  const frames: (Keyframe & { offset: number })[] = [{ offset: 0, scale: "1", easing }];
   const between = (minimum: number, maximum: number) => minimum + (maximum - minimum) * random();
   let time = 0;
-  let scale = startScale;
 
-  const moveTo = (nextScale: number, duration: number) => {
+  const moveTo = (scale: number, duration: number) => {
     time += duration;
-    scale = nextScale;
     frames.push({ offset: time, scale: String(scale), easing });
+  };
+
+  const hit = (strength: number, short: boolean) => {
+    moveTo(1 + strength, short ? between(150, 185) : between(165, 220));
+    moveTo(1 - strength * .08, short ? between(180, 245) : between(270, 390));
+    moveTo(1, between(100, 145));
   };
 
   for (let index = 0; index < 10; index += 1) {
     const strength = between(.014, .021);
-    moveTo(1 + strength, between(320, 570));
-
-    if (random() < .23) {
-      moveTo(1 + between(.005, .008), between(210, 300));
-      moveTo(1 + strength * between(.68, .84), between(240, 340));
+    const double = random() < .23;
+    hit(strength, double);
+    if (double) {
+      moveTo(1, between(60, 120));
+      hit(strength * between(.67, .8), true);
     }
 
-    const release = random() < .18 ? between(850, 1100) : between(380, 710);
-    moveTo(1 + between(.0015, .004), release);
+    moveTo(1, random() < .15 ? between(330, 425) : between(135, 255));
   }
 
   for (const frame of frames) frame.offset /= time;
-  return { frames, duration: time, endScale: scale };
+  return { frames, duration: time };
 }
 
 export function MusicPulse({ trackKey, playing }: {
@@ -73,15 +76,14 @@ export function MusicPulse({ trackKey, playing }: {
       !root.hasAttribute("data-theme-wave") &&
       root.dataset.asciiIntro !== "pending" && root.dataset.asciiIntro !== "building";
 
-    const play = (startScale: number) => {
-      const { frames, duration, endScale } = pulseSequence(random, startScale);
-      // Keep the shared scale visible while the next sequence starts.
-      const current = card.animate(frames, { duration, fill: "both" });
+    const play = () => {
+      const { frames, duration } = pulseSequence(random);
+      const current = card.animate(frames, { duration });
       animation = current;
       current.onfinish = () => {
         if (animation !== current) return;
         animation = null;
-        if (eligible()) play(endScale);
+        if (eligible()) play();
         current.cancel();
       };
     };
@@ -96,7 +98,7 @@ export function MusicPulse({ trackKey, playing }: {
       const active = eligible();
       indicator.toggleAttribute("data-live", active);
       if (!active) stop();
-      else if (canPulse && !animation) play(1);
+      else if (canPulse && !animation) play();
     };
 
     const visibility = new IntersectionObserver(([entry]) => {
