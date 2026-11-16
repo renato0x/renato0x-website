@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 function pulseRandom(trackKey: string) {
   let seed = 2166136261;
@@ -16,58 +16,55 @@ function pulseRandom(trackKey: string) {
   };
 }
 
-function pulseSequence(random: () => number, leadIn: number) {
-  const attack = "cubic-bezier(.22,.65,.35,1)";
-  const frames: (Keyframe & { offset: number })[] = [{ offset: 0, scale: "1", easing: attack }];
+function pulseSequence(random: () => number, startScale: number) {
+  const easing = "cubic-bezier(.42,0,.58,1)";
+  const frames: (Keyframe & { offset: number })[] = [{ offset: 0, scale: String(startScale), easing }];
   const between = (minimum: number, maximum: number) => minimum + (maximum - minimum) * random();
-  let time = leadIn;
+  let time = 0;
+  let scale = startScale;
 
-  const hit = (at: number, strength: number, release: number) => {
-    if (at > 0) frames.push({ offset: at, scale: "1", easing: attack });
-    const peak = at + between(45, 65);
-    frames.push(
-      { offset: peak, scale: (1 + strength).toFixed(4), easing: "cubic-bezier(.2,.65,.3,1)" },
-      { offset: peak + release, scale: "1" },
-    );
+  const moveTo = (nextScale: number, duration: number) => {
+    time += duration;
+    scale = nextScale;
+    frames.push({ offset: time, scale: String(scale), easing });
   };
 
   for (let index = 0; index < 10; index += 1) {
-    const strength = between(.004, .008);
-    const double = random() < .2;
-    hit(time, strength, double ? between(140, 170) : between(175, 255));
-    if (double) hit(time + between(240, 320), strength * between(.45, .65), between(115, 180));
-    time += random() < .15 ? between(2000, 3000) : between(700, 1700);
+    const strength = between(.014, .021);
+    moveTo(1 + strength, between(320, 570));
+
+    if (random() < .23) {
+      moveTo(1 + between(.005, .008), between(210, 300));
+      moveTo(1 + strength * between(.68, .84), between(240, 340));
+    }
+
+    const release = random() < .18 ? between(850, 1100) : between(380, 710);
+    moveTo(1 + between(.0015, .004), release);
   }
 
   for (const frame of frames) frame.offset /= time;
-  frames.push({ offset: 1, scale: "1" });
-  return { frames, duration: time };
+  return { frames, duration: time, endScale: scale };
 }
 
-export function MusicPulse({ trackKey, playing, language }: {
+export function MusicPulse({ trackKey, playing }: {
   trackKey: string | null;
   playing: boolean;
-  language: "pt" | "en";
 }) {
-  const indicatorRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
   const sequence = useRef<{ key: string; random: () => number } | null>(null);
-  const [paused, setPaused] = useState(false);
-  const [supported, setSupported] = useState(false);
-
-  useEffect(() => {
-    setSupported(typeof HTMLElement.prototype.animate === "function" && CSS.supports("scale", "1"));
-  }, []);
 
   useEffect(() => {
     if (trackKey !== sequence.current?.key) {
       sequence.current = trackKey ? { key: trackKey, random: pulseRandom(trackKey) } : null;
     }
     const random = sequence.current?.random;
-    const card = indicatorRef.current?.closest(".music-card");
-    if (!random || !playing || paused || !supported || !card) return;
+    const indicator = indicatorRef.current;
+    const card = indicator?.closest(".music-card");
+    if (!random || !playing || !indicator || !card) return;
 
     const root = document.documentElement;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const canPulse = typeof card.animate === "function" && CSS.supports("scale", "1");
     let visible = false;
     let disposed = false;
     let animation: Animation | null = null;
@@ -76,14 +73,16 @@ export function MusicPulse({ trackKey, playing, language }: {
       !root.hasAttribute("data-theme-wave") &&
       root.dataset.asciiIntro !== "pending" && root.dataset.asciiIntro !== "building";
 
-    const play = (leadIn: number) => {
-      const { frames, duration } = pulseSequence(random, leadIn);
-      const current = card.animate(frames, { duration });
+    const play = (startScale: number) => {
+      const { frames, duration, endScale } = pulseSequence(random, startScale);
+      // Keep the shared scale visible while the next sequence starts.
+      const current = card.animate(frames, { duration, fill: "both" });
       animation = current;
       current.onfinish = () => {
         if (animation !== current) return;
         animation = null;
-        if (eligible()) play(0);
+        if (eligible()) play(endScale);
+        current.cancel();
       };
     };
 
@@ -94,8 +93,10 @@ export function MusicPulse({ trackKey, playing, language }: {
       animation = null;
     };
     const sync = () => {
-      if (!eligible()) stop();
-      else if (!animation) play(450);
+      const active = eligible();
+      indicator.toggleAttribute("data-live", active);
+      if (!active) stop();
+      else if (canPulse && !animation) play(1);
     };
 
     const visibility = new IntersectionObserver(([entry]) => {
@@ -111,37 +112,17 @@ export function MusicPulse({ trackKey, playing, language }: {
     return () => {
       disposed = true;
       stop();
+      indicator.removeAttribute("data-live");
       transition.disconnect();
       visibility.disconnect();
       document.removeEventListener("visibilitychange", sync);
       reduced.removeEventListener("change", sync);
     };
-  }, [trackKey, playing, paused, supported]);
-
-  const label = language === "pt" ? "Pulso do card do Spotify" : "Spotify card pulse";
-  const action = language === "pt"
-    ? (paused ? "Retomar animação" : "Pausar animação")
-    : (paused ? "Resume animation" : "Pause animation");
+  }, [trackKey, playing]);
 
   return (
-    <div className="music-wave" ref={indicatorRef}>
-      {playing && supported && (
-        <button
-          type="button"
-          className="music-pulse-toggle"
-          aria-label={label}
-          aria-pressed={!paused}
-          title={action}
-          onClick={() => setPaused((value) => !value)}
-        >
-          <svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor" aria-hidden="true">
-            {paused ? <path d="M4 2.5 9 6 4 9.5Z" /> : <path d="M3.5 2.5h1.5v7H3.5zm3.5 0h1.5v7H7z" />}
-          </svg>
-        </button>
-      )}
-      <span className="music-wave-bars" aria-hidden="true">
-        <i /><i /><i /><i /><i /><i /><i /><i /><i />
-      </span>
-    </div>
+    <span className="music-wave" ref={indicatorRef} aria-hidden="true">
+      <i /><i /><i /><i /><i /><i /><i /><i /><i />
+    </span>
   );
 }

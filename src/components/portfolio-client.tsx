@@ -1763,7 +1763,6 @@ export default function PortfolioClient() {
             <MusicPulse
               trackKey={track ? JSON.stringify([track.title, track.artist]) : null}
               playing={isPlaying}
-              language={language}
             />
             <div className="music-art">
               {track && failedCover !== track.cover
