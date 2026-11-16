@@ -38,11 +38,11 @@ function pulseSequence(random: () => number) {
     const double = random() < .23;
     hit(strength, double);
     if (double) {
-      moveTo(1, between(60, 120));
+      moveTo(1, between(110, 170));
       hit(strength * between(.67, .8), true);
     }
 
-    moveTo(1, random() < .15 ? between(330, 425) : between(135, 255));
+    moveTo(1, random() < .15 ? between(455, 550) : between(245, 365));
   }
 
   for (const frame of frames) frame.offset /= time;
