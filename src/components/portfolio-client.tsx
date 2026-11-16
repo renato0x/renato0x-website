@@ -29,7 +29,6 @@ const pageTitle = "renato0x";
 
 type Project = {
   name: ProjectName;
-  featured?: boolean;
   fallbackStars: number;
   fallbackCommits: number;
   meta: Record<Language, string>;
@@ -69,7 +68,6 @@ const commitsKeyPrefix = "renato0x-github-commits-";
 const projects: Project[] = [
   {
     name: "SUB-SEEMG",
-    featured: true,
     fallbackStars: 0,
     fallbackCommits: 27,
     meta: { pt: "C#", en: "C#" },
@@ -164,7 +162,6 @@ function LocaleSwap({
   className = "",
   block = false,
   ready,
-  ariaHidden = false,
   transitionId,
   highlightTerms = [],
 }: {
@@ -172,7 +169,6 @@ function LocaleSwap({
   className?: string;
   block?: boolean;
   ready: boolean;
-  ariaHidden?: boolean;
   transitionId: number;
   highlightTerms?: readonly CodeLeafMark[];
 }) {
@@ -199,7 +195,7 @@ function LocaleSwap({
 
   if (!ready || reduceMotion || activeTransition !== transitionId || transitionId === 0) {
     return (
-      <span className={slotClass} aria-hidden={ariaHidden || undefined}>
+      <span className={slotClass}>
         <span className={textClass}>
           <CodeLeafText text={children} terms={highlightTerms} />
         </span>
@@ -208,7 +204,7 @@ function LocaleSwap({
   }
 
   return (
-    <span className={slotClass} aria-hidden={ariaHidden || undefined}>
+    <span className={slotClass}>
       <EncryptedText
         key={transitionId}
         text={children}
@@ -317,11 +313,12 @@ function AsciiField() {
     const root = document.documentElement;
     const readPalette = () => {
       const style = window.getComputedStyle(root);
+      const cloudContrast = Number(style.getPropertyValue("--ascii-cloud-contrast")) || 1;
       return {
         cloud: style.getPropertyValue("--ascii-cloud").trim(),
         grain: style.getPropertyValue("--ascii-grain").trim(),
         cloudFont: style.getPropertyValue("--ascii-cloud-font").trim(),
-        cloudContrast: Number(style.getPropertyValue("--ascii-cloud-contrast")) || 1,
+        cloudContrast: cloudContrast * (root.dataset.theme === "light" ? 1.08 : 1),
       };
     };
     let palette = readPalette();
@@ -336,8 +333,9 @@ function AsciiField() {
     const maskTargets: Array<{ selector: string; strength: number; feather: number }> = [
       { selector: ".bio-block", strength: 0.94, feather: 46 },
       { selector: ".stacks", strength: 0.68, feather: 26 },
-      { selector: ".projects", strength: 0.81, feather: 42 },
-      { selector: ".profile-column", strength: 0.85, feather: 42 },
+      { selector: ".project-card", strength: 0.79, feather: 14 },
+      { selector: ".profile-head, .socials", strength: 0.85, feather: 28 },
+      { selector: ".music-card", strength: 0.84, feather: 20 },
       { selector: ".preference-switch", strength: 0.83, feather: 28 },
     ];
     let contentMaskZones: Array<{ left: number; top: number; right: number; bottom: number; strength: number; feather: number }> = [];
@@ -409,7 +407,7 @@ function AsciiField() {
 
       const normalizedX = x / Math.max(width, 1);
       const normalizedY = y / Math.max(height, 1);
-      const cycle = elapsedSeconds * (Math.PI * 2 / 18);
+      const cycle = elapsedSeconds * (Math.PI * 2 / 15);
       const primary = Math.sin(normalizedX * 5.8 + normalizedY * 2.8 - cycle);
       const cross = Math.sin(
         normalizedX * -2.1 + normalizedY * 6.2 + cycle * 2 + Math.sin(cycle) * 0.46,
@@ -691,8 +689,8 @@ function AsciiField() {
           });
         }
       }
-      const stormFlow = stormElapsed * (Math.PI * 2 / 9_000);
-      const stormCrossFlow = stormElapsed * (Math.PI * 2 / 13_000);
+      const stormFlow = stormElapsed * (Math.PI * 2 / 7_600);
+      const stormCrossFlow = stormElapsed * (Math.PI * 2 / 11_000);
       const now = performance.now();
       while (wake.length && now - wake[0].time > 1050) wake.shift();
       while (clickPulses.length && now - clickPulses[0].startedAt >= 900) clickPulses.shift();
@@ -786,7 +784,7 @@ function AsciiField() {
               const depth = 0.42 + (1 - Math.min(Math.hypot(nx, ny), 1)) * 0.72;
               const offsetX = Math.round(-parallaxX * depth * 4);
               const offsetY = Math.round(-parallaxY * depth * 3);
-              const ambient = cloud * (0.42 + stormFront * 0.12);
+              const ambient = cloud * (0.44 + stormFront * 0.14);
               const response = Math.max(trail * 0.37, flash * 0.35, clickPulse * 0.62);
               const renderedX = x + offsetX;
               const renderedY = y + offsetY;
@@ -809,7 +807,7 @@ function AsciiField() {
 
       context.globalAlpha = 1;
       if (!reduceMotion && !document.hidden) {
-        time += delta * 0.000675;
+        time += delta * 0.00085;
         frame = window.requestAnimationFrame(draw);
       }
     };
@@ -853,7 +851,8 @@ function AsciiField() {
 
     resizeObserver.observe(canvas);
     paletteObserver.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
-    document.querySelectorAll<HTMLElement>(".content-layout, .preference-switch, .bio-block, .stacks, .projects, .profile-column").forEach((element) => layoutObserver.observe(element));
+    const layoutTargets = [".content-layout", ...maskTargets.map(({ selector }) => selector)].join(", ");
+    document.querySelectorAll<HTMLElement>(layoutTargets).forEach((element) => layoutObserver.observe(element));
     refreshContentMask();
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
     window.addEventListener("pointerdown", handlePointerDown, { passive: true });
@@ -958,6 +957,7 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
     <motion.div
       id="profile-photo-preview"
       className="profile-photo-preview"
+      data-open={isOpen}
       style={{ x, y, rotate, width: previewSize, height: previewSize }}
       initial={{ opacity: 0, scale: 0.94 }}
       animate={isOpen ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.94 }}
@@ -1291,11 +1291,14 @@ export default function PortfolioClient() {
   const profileLabel = currentCopy.profile;
   const socialLinksLabel = currentCopy.socialLinks;
   const isPlaying = track?.source === "spotify" || track?.source === "discord";
+  const firstSentenceEnd = currentCopy.bio.indexOf(". ") + 1;
+  const bioLead = currentCopy.bio.slice(0, firstSentenceEnd || undefined);
+  const bioRest = currentCopy.bio.slice(bioLead.length).trimStart();
 
   return (
     <>
       <AsciiField />
-      <main className="page page-intro">
+      <main className="page page-intro" aria-label={currentCopy.content}>
         <header className="utility">
           <div className="preference-switch theme-switch" data-pending={theme === null || undefined} role="group" aria-label={language === "pt" ? "Tema" : "Theme"}>
             {(["light", "dark"] as const).map((option) => (
@@ -1344,88 +1347,7 @@ export default function PortfolioClient() {
         </header>
 
         <div className="content-layout">
-          <section className="main-column" aria-label={currentCopy.content}>
-            <h1 className="sr-only">renato0x</h1>
-            <section className="bio-block" aria-label={aboutLabel}>
-              <span className="entry-ascii" aria-hidden="true">.:=+*#@</span>
-              <p>
-                <LocaleSwap
-                  block
-                  ready={localeMotionReady}
-                  transitionId={localeTransitionId}
-                  highlightTerms={currentCopy.bioHighlights}
-                >
-                  {currentCopy.bio}
-                </LocaleSwap>
-              </p>
-            </section>
-
-            <section className="stacks" aria-label={technologiesLabel}>
-              <span className="entry-ascii entry-ascii--stacks" aria-hidden="true">.:=+*#@</span>
-              <ul className="stack-row" role="list" aria-label={currentCopy.technologyList}>
-                {stackItems.map(([name, image]) => (
-                  <HoverTooltip as="li" className="stack-item" label={name} key={name}>
-                    <img src={image} alt="" width="18" height="18" />
-                  </HoverTooltip>
-                ))}
-              </ul>
-              <LocaleSwap className="stack-caption" ready={localeMotionReady} transitionId={localeTransitionId} ariaHidden>
-                {language === "pt" ? "> projetos" : "> projects"}
-              </LocaleSwap>
-            </section>
-
-            <section className="projects" aria-labelledby="projects-title">
-              <span className="entry-ascii entry-ascii--projects" aria-hidden="true">.:=+*#@</span>
-              <h2 className="sr-only" id="projects-title">{projectsLabel}</h2>
-              <div className="project-grid">
-                {projects.map((project, index) => (
-                  <SpotlightCard
-                    as="a"
-                    className={`project-card${project.featured ? " project-card--featured" : ""}`}
-                    style={{ "--n": index + 1 } as CSSProperties}
-                    href={project.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`${project.name}. ${project.description[language]}. ${commits[project.name] ?? project.fallbackCommits} ${currentCopy.githubCommits}. ${currentCopy.openProject(project.name)}`}
-                    key={project.name}
-                  >
-                    <div className="project-top">
-                      <img className="project-mark" src={project.logo} alt="" />
-                      <span className="project-open" aria-hidden="true">↗</span>
-                    </div>
-                    <div className="project-copy">
-                      <h3>{project.name}</h3>
-                      <p><LocaleSwap block ready={localeMotionReady} transitionId={localeTransitionId}>{project.description[language]}</LocaleSwap></p>
-                    </div>
-                    <div className="project-meta">
-                      <span className="language">
-                        <i className="language-dot" />
-                        {project.meta[language]}
-                      </span>
-                      <span className="stars" aria-label={currentCopy.githubStars}>
-                        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                          <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
-                        </svg>
-                        <b aria-live="polite">{stars[project.name] ?? project.fallbackStars}</b>
-                      </span>
-                      <span
-                        className="commit-count"
-                        role="img"
-                        title={currentCopy.githubCommits}
-                        aria-label={`${commits[project.name] ?? project.fallbackCommits} ${currentCopy.githubCommits}`}
-                      >
-                        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-                          <path d="M3 12h6m6 0h6" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                        <b aria-live="polite">{commits[project.name] ?? project.fallbackCommits}</b>
-                      </span>
-                    </div>
-                  </SpotlightCard>
-                ))}
-              </div>
-            </section>
-          </section>
+          <h1 className="sr-only">renato0x</h1>
 
           <aside className="profile-column" aria-label={profileLabel}>
             <span className="entry-ascii entry-ascii--profile" aria-hidden="true">.:=+*#@</span>
@@ -1470,45 +1392,135 @@ export default function PortfolioClient() {
                 <span className="monogram" aria-hidden="true">in</span>
               </HoverTooltip>
             </nav>
-
-            <SpotlightCard as="section" className="music-card" aria-label={currentCopy.spotify} data-source={track?.source ?? "empty"} data-playing={isPlaying}>
-              <span className="music-wave" aria-hidden="true">
-                <i /><i /><i /><i /><i /><i /><i /><i /><i />
-              </span>
-              <div className="music-art">
-                {track && failedCover !== track.cover
-                  ? <img className="music-cover" src={track.cover} alt="" width="54" height="54" onError={handleCoverError} />
-                  : <div className="music-art-empty" aria-hidden="true" />}
-              </div>
-              <div className="music-info" aria-live="polite">
-                <div className="music-heading">
-                  <span className="music-brand">
-                    <img className="spotify-mark" src="/assets/social/spotify.svg" alt="" width="13" height="13" />
-                    <span>Spotify</span>
-                  </span>
-                  <LocaleSwap className="music-state" ready={localeMotionReady} transitionId={localeTransitionId}>
-                    {track?.source === "spotify"
-                      ? currentCopy.listening
-                      : track?.source === "discord"
-                        ? currentCopy.viaDiscord
-                        : track
-                          ? currentCopy.lastPlayed
-                          : currentCopy.noPlayback}
-                  </LocaleSwap>
-                </div>
-                <h2 className="music-title">
-                  {track
-                    ? <EncryptedText text={track.title} encryptedClassName="scrambled-text" revealDelayMs={32} flipDelayMs={28} glitchIntervalMs={0} />
-                    : currentCopy.noRecentTrack}
-                </h2>
-                <p className="music-artist">
-                  {track
-                    ? <EncryptedText text={track.artist} encryptedClassName="scrambled-text" revealDelayMs={32} flipDelayMs={28} glitchIntervalMs={0} />
-                    : currentCopy.noRecentArtist}
-                </p>
-              </div>
-            </SpotlightCard>
           </aside>
+
+          <section className="bio-block" aria-label={aboutLabel}>
+            <span className="entry-ascii" aria-hidden="true">.:=+*#@</span>
+            <p>
+              <LocaleSwap
+                block
+                ready={localeMotionReady}
+                transitionId={localeTransitionId}
+                highlightTerms={currentCopy.bioHighlights}
+              >
+                {bioLead}
+              </LocaleSwap>
+            </p>
+          </section>
+
+          <section className="projects" aria-labelledby="projects-title">
+            <span className="entry-ascii entry-ascii--projects" aria-hidden="true">.:=+*#@</span>
+            <h2 className="sr-only" id="projects-title">{projectsLabel}</h2>
+            <div className="project-grid">
+              {projects.map((project, index) => (
+                <SpotlightCard
+                  as="a"
+                  className="project-card"
+                  style={{ "--n": index + 1 } as CSSProperties}
+                  href={project.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${project.name}. ${project.description[language]}. ${commits[project.name] ?? project.fallbackCommits} ${currentCopy.githubCommits}. ${currentCopy.openProject(project.name)}`}
+                  key={project.name}
+                >
+                  <div className="project-top">
+                    <img className="project-mark" src={project.logo} alt="" />
+                    <span className="project-open" aria-hidden="true">↗</span>
+                  </div>
+                  <div className="project-copy">
+                    <h3>{project.name}</h3>
+                    <p><LocaleSwap block ready={localeMotionReady} transitionId={localeTransitionId}>{project.description[language]}</LocaleSwap></p>
+                  </div>
+                  <div className="project-meta">
+                    <span className="language">
+                      <i className="language-dot" />
+                      {project.meta[language]}
+                    </span>
+                    <span className="stars" aria-label={currentCopy.githubStars}>
+                      <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" />
+                      </svg>
+                      <b aria-live="polite">{stars[project.name] ?? project.fallbackStars}</b>
+                    </span>
+                    <span
+                      className="commit-count"
+                      role="img"
+                      title={currentCopy.githubCommits}
+                      aria-label={`${commits[project.name] ?? project.fallbackCommits} ${currentCopy.githubCommits}`}
+                    >
+                      <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+                        <path d="M3 12h6m6 0h6" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <b aria-live="polite">{commits[project.name] ?? project.fallbackCommits}</b>
+                    </span>
+                  </div>
+                </SpotlightCard>
+              ))}
+            </div>
+          </section>
+
+          <section className="bio-block bio-rest">
+            <p>
+              <LocaleSwap
+                block
+                ready={localeMotionReady}
+                transitionId={localeTransitionId}
+                highlightTerms={currentCopy.bioHighlights}
+              >
+                {bioRest}
+              </LocaleSwap>
+            </p>
+          </section>
+
+          <section className="stacks" aria-label={technologiesLabel}>
+            <span className="entry-ascii entry-ascii--stacks" aria-hidden="true">.:=+*#@</span>
+            <ul className="stack-row" role="list" aria-label={currentCopy.technologyList}>
+              {stackItems.map(([name, image]) => (
+                <HoverTooltip as="li" className="stack-item" label={name} key={name}>
+                  <img src={image} alt="" width="18" height="18" />
+                </HoverTooltip>
+              ))}
+            </ul>
+          </section>
+
+          <SpotlightCard as="section" className="music-card" aria-label={currentCopy.spotify} data-source={track?.source ?? "empty"} data-playing={isPlaying}>
+            <span className="music-wave" aria-hidden="true">
+              <i /><i /><i /><i /><i /><i /><i /><i /><i />
+            </span>
+            <div className="music-art">
+              {track && failedCover !== track.cover
+                ? <img className="music-cover" src={track.cover} alt="" width="54" height="54" onError={handleCoverError} />
+                : <div className="music-art-empty" aria-hidden="true" />}
+            </div>
+            <div className="music-info" aria-live="polite">
+              <div className="music-heading">
+                <span className="music-brand">
+                  <img className="spotify-mark" src="/assets/social/spotify.svg" alt="" width="13" height="13" />
+                  <span>Spotify</span>
+                </span>
+                <LocaleSwap className="music-state" ready={localeMotionReady} transitionId={localeTransitionId}>
+                  {track?.source === "spotify"
+                    ? currentCopy.listening
+                    : track?.source === "discord"
+                      ? currentCopy.viaDiscord
+                      : track
+                        ? currentCopy.lastPlayed
+                        : currentCopy.noPlayback}
+                </LocaleSwap>
+              </div>
+              <h2 className="music-title">
+                {track
+                  ? <EncryptedText text={track.title} encryptedClassName="scrambled-text" revealDelayMs={32} flipDelayMs={28} glitchIntervalMs={0} />
+                  : currentCopy.noRecentTrack}
+              </h2>
+              <p className="music-artist">
+                {track
+                  ? <EncryptedText text={track.artist} encryptedClassName="scrambled-text" revealDelayMs={32} flipDelayMs={28} glitchIntervalMs={0} />
+                  : currentCopy.noRecentArtist}
+              </p>
+            </div>
+          </SpotlightCard>
         </div>
       </main>
     </>
