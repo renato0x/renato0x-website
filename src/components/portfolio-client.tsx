@@ -332,10 +332,10 @@ function AsciiField() {
     const wake: Array<{ x: number; y: number; time: number; energy: number }> = [];
     const clickPulses: Array<{ x: number; y: number; startedAt: number }> = [];
     const maskTargets: Array<{ selector: string; strength: number; feather: number }> = [
-      { selector: ".bio-block", strength: 0.89, feather: 46 },
-      { selector: ".stacks", strength: 0.60, feather: 26 },
-      { selector: ".projects", strength: 0.73, feather: 42 },
-      { selector: ".profile-column", strength: 0.78, feather: 42 },
+      { selector: ".bio-block", strength: 0.94, feather: 46 },
+      { selector: ".stacks", strength: 0.68, feather: 26 },
+      { selector: ".projects", strength: 0.81, feather: 42 },
+      { selector: ".profile-column", strength: 0.85, feather: 42 },
       { selector: ".preference-switch", strength: 0.83, feather: 28 },
     ];
     let contentMaskZones: Array<{ left: number; top: number; right: number; bottom: number; strength: number; feather: number }> = [];
@@ -368,6 +368,7 @@ function AsciiField() {
 
     const refreshContentMask = () => {
       const canvasBounds = canvas.getBoundingClientRect();
+      const compact = compactQuery.matches;
       contentMaskZones = maskTargets.flatMap((target) => Array.from(document.querySelectorAll<HTMLElement>(target.selector)).map((element) => {
         const bounds = element.getBoundingClientRect();
         return {
@@ -376,7 +377,7 @@ function AsciiField() {
           right: bounds.right - canvasBounds.left,
           bottom: bounds.bottom - canvasBounds.top,
           strength: target.strength,
-          feather: target.feather,
+          feather: compact ? Math.min(target.feather, 12) : target.feather,
         };
       }));
     };
@@ -422,7 +423,7 @@ function AsciiField() {
 
     const getFieldValue = (x: number, y: number, nx: number, ny: number) => {
       const drift = reduceMotion ? 0 : time;
-      const bank = Math.sin(ny * 6.4 + nx * 3.4 + Math.sin(nx * 3.8 - drift * 0.42) - drift * 0.82);
+      const bank = Math.sin(ny * 5.8 + nx * 3.4 + Math.sin(nx * 3.8 - drift * 0.42) - drift * 0.82);
       const lobes = Math.cos(nx * 5.6 - ny * 3.1 + drift * 0.57);
       const grain =
         Math.sin(x * 0.039 + y * 0.031 + drift * 0.6) *
@@ -448,6 +449,7 @@ function AsciiField() {
       const stepX = width < 760 ? 25 : 20;
       const stepY = width < 760 ? 24 : 20;
       const elapsedSeconds = stormElapsed / 1000;
+      context.fillStyle = palette.grain;
 
       for (let row = 0, y = 12; y < height; row += 1, y += stepY) {
         for (let column = 0, x = 10; x < width; column += 1, x += stepX) {
@@ -492,7 +494,6 @@ function AsciiField() {
           if (alpha < 0.04) continue;
 
           context.globalAlpha = Math.min(0.32, alpha);
-          context.fillStyle = palette.grain;
           context.font = glyph === ":" ? "12px ui-monospace,monospace" : "11px ui-monospace,monospace";
           context.fillText(glyph, maskedX, maskedY);
         }
@@ -651,7 +652,7 @@ function AsciiField() {
       context.font = "10px ui-monospace,monospace";
       context.textBaseline = "middle";
 
-      const intensity = compactQuery.matches ? 0.73 : 1;
+      const intensity = compactQuery.matches ? 0.84 : 1;
       const parallaxX = reduceMotion || !finePointer ? 0 : pointerX.get();
       const parallaxY = reduceMotion || !finePointer ? 0 : pointerY.get();
       if (!reduceMotion) {
@@ -668,7 +669,7 @@ function AsciiField() {
       }
 
       const shortEdge = Math.min(width, height);
-      const flashRadius = shortEdge * 0.30;
+      const flashRadius = shortEdge * 0.33;
       activeStormNodes.length = 0;
       if (stormFlash) {
         for (const node of stormFlash.nodes) {
@@ -715,11 +716,11 @@ function AsciiField() {
       wakeBottom += 60;
 
       if (width > 0 && height > 0) {
+        context.fillStyle = palette.cloud;
         for (let y = 16; y < height; y += 14) {
+          const ny = (y / height - 0.5) * 2;
           for (let x = 8; x < width; x += 10) {
             const nx = (x / width - 0.5) * 2;
-            const ny = (y / height - 0.5) * 2;
-            const radius = Math.hypot(nx, ny);
             const value = getFieldValue(x, y, nx, ny);
             const stormFront = getStormFront(nx, ny, stormFlow, stormCrossFlow);
             let trail = 0;
@@ -774,24 +775,24 @@ function AsciiField() {
               }
             }
 
-            const threshold = 0.22 - stormFront * 0.045 - flash * 0.15 - trail * 0.25 - clickPulse * 0.22;
+            const threshold = 0.16 - stormFront * 0.045 - flash * 0.15 - trail * 0.25 - clickPulse * 0.22;
 
             if (value > threshold || trail > 0.08 || clickPulse > 0.08) {
-              const cloud = smoothStep((value - threshold) / (1 - threshold));
+              const cloudDepth = clamp((value - threshold) / (1 - threshold), 0, 1);
+              const cloud = smoothStep(cloudDepth) * 0.68 + cloudDepth * 0.32;
               const density = clamp(0.11 + cloud * 0.72 + trail * 0.76 + flash * 0.23 + clickPulse * 0.48, 0, 1);
-              const depth = 0.42 + (1 - Math.min(radius, 1)) * 0.72;
+              const depth = 0.42 + (1 - Math.min(Math.hypot(nx, ny), 1)) * 0.72;
               const offsetX = Math.round(-parallaxX * depth * 4);
               const offsetY = Math.round(-parallaxY * depth * 3);
-              const ambient = cloud * (0.25 + stormFront * 0.09);
-              const response = Math.max(trail * 0.37, flash * 0.25, clickPulse * 0.46);
+              const ambient = cloud * (0.42 + stormFront * 0.12);
+              const response = Math.max(trail * 0.37, flash * 0.35, clickPulse * 0.62);
               const renderedX = x + offsetX;
               const renderedY = y + offsetY;
 
-              const alpha = Math.min(0.55, ambient + response) * contentMask(renderedX, renderedY) * intensity;
+              const alpha = Math.min(0.68, ambient + response) * contentMask(renderedX, renderedY) * intensity;
               if (alpha < 0.008) continue;
 
               context.globalAlpha = alpha;
-              context.fillStyle = palette.cloud;
               context.fillText(
                 chars[Math.floor(density * (chars.length - 1))],
                 renderedX,
@@ -806,7 +807,7 @@ function AsciiField() {
 
       context.globalAlpha = 1;
       if (!reduceMotion && !document.hidden) {
-        time += delta * 0.00054;
+        time += delta * 0.000675;
         frame = window.requestAnimationFrame(draw);
       }
     };
