@@ -281,6 +281,10 @@ button { font: inherit; }
 
 @media (max-width: 700px) {
   .page { padding: 16px 16px calc(28px + env(safe-area-inset-bottom)); gap: 18px; }
+  .preference-switch { gap: 2px; padding: 2px; }
+  .preference-switch button { min-width: 34px; min-height: 34px; padding: 4px 7px; }
+  .stack-row { display: flex; flex-wrap: wrap; justify-content: center; max-width: 203px; margin-inline: auto; }
+  .stack-item { flex: 0 0 35px; }
   .page-intro .profile-column { animation-delay: .04s; }
   .page-intro .bio-block { animation-delay: .15s; }
   .page-intro .stacks { animation-delay: .23s; }
