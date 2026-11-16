@@ -314,16 +314,17 @@ function AsciiField() {
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const hoverQuery = window.matchMedia("(any-hover: hover) and (any-pointer: fine)");
+    const compactQuery = window.matchMedia("(max-width: 760px)");
     const chars = " .,:;-=+*#%@";
     const dotChars = ".:";
     const wake: Array<{ x: number; y: number; time: number; energy: number }> = [];
     const clickPulses: Array<{ x: number; y: number; startedAt: number }> = [];
     const maskTargets: Array<{ selector: string; strength: number; feather: number }> = [
-      { selector: ".bio-block", strength: 0.72, feather: 42 },
-      { selector: ".stacks", strength: 0.36, feather: 30 },
-      { selector: ".projects", strength: 0.24, feather: 38 },
-      { selector: ".profile-column", strength: 0.52, feather: 48 },
-      { selector: ".utility", strength: 0.46, feather: 28 },
+      { selector: ".bio-block", strength: 0.89, feather: 46 },
+      { selector: ".stacks", strength: 0.60, feather: 26 },
+      { selector: ".projects", strength: 0.73, feather: 42 },
+      { selector: ".profile-column", strength: 0.78, feather: 42 },
+      { selector: ".language-switch", strength: 0.83, feather: 28 },
     ];
     let contentMaskZones: Array<{ left: number; top: number; right: number; bottom: number; strength: number; feather: number }> = [];
     let time = 0;
@@ -408,13 +409,13 @@ function AsciiField() {
     };
 
     const getFieldValue = (x: number, y: number, nx: number, ny: number) => {
-      const wave =
-        Math.sin(nx * 9.4 + ny * 5.3 + time * 0.78) *
-        Math.cos(ny * 12.6 - nx * 3.7 - time * 0.51);
+      const drift = reduceMotion ? 0 : time;
+      const bank = Math.sin(ny * 6.4 + nx * 3.4 + Math.sin(nx * 3.8 - drift * 0.42) - drift * 0.82);
+      const lobes = Math.cos(nx * 5.6 - ny * 3.1 + drift * 0.57);
       const grain =
-        Math.sin(x * 0.039 + y * 0.031 + time * 0.6) *
-        Math.cos(x * 0.012 - y * 0.021 + time * 0.37);
-      return wave * 0.68 + grain * 0.32;
+        Math.sin(x * 0.039 + y * 0.031 + drift * 0.6) *
+        Math.cos(x * 0.012 - y * 0.021 + drift * 0.37);
+      return bank * 0.56 + lobes * 0.27 + grain * 0.17;
     };
 
     const getStormFront = (nx: number, ny: number, flow: number, crossFlow: number) => {
@@ -430,6 +431,7 @@ function AsciiField() {
       parallaxX: number,
       parallaxY: number,
       stormNodes: ActiveStormNode[],
+      intensity: number,
     ) => {
       const stepX = width < 760 ? 25 : 20;
       const stepY = width < 760 ? 24 : 20;
@@ -469,18 +471,18 @@ function AsciiField() {
           }
 
           const alpha =
-            (0.12 + pulse * 0.17) *
+            (0.12 + pulse * 0.14) *
             smoothStep(edgeDistance / 74) *
             contentMask(maskedX, maskedY) *
             wave.opacity *
             localFade *
-            (1 + stormBoost * 0.42);
+            (1 + stormBoost * 0.55) * intensity;
           if (alpha < 0.04) continue;
 
           context.globalAlpha = Math.min(0.32, alpha);
           context.fillStyle = "#dedede";
           context.font = glyph === ":" ? "12px ui-monospace,monospace" : "11px ui-monospace,monospace";
-          context.fillText(glyph, maskedX + 16, maskedY + 16);
+          context.fillText(glyph, maskedX, maskedY);
         }
       }
     };
@@ -609,7 +611,6 @@ function AsciiField() {
         pointerTargetY.jump(0);
         pointerX.jump(0);
         pointerY.jump(0);
-        draw();
       }
     };
 
@@ -636,7 +637,9 @@ function AsciiField() {
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
       context.font = "10px ui-monospace,monospace";
+      context.textBaseline = "middle";
 
+      const intensity = compactQuery.matches ? 0.73 : 1;
       const parallaxX = reduceMotion || !finePointer ? 0 : pointerX.get();
       const parallaxY = reduceMotion || !finePointer ? 0 : pointerY.get();
       if (!reduceMotion) {
@@ -652,7 +655,8 @@ function AsciiField() {
         }
       }
 
-      const flashRadius = Math.min(width, height) * 0.26;
+      const shortEdge = Math.min(width, height);
+      const flashRadius = shortEdge * 0.30;
       activeStormNodes.length = 0;
       if (stormFlash) {
         for (const node of stormFlash.nodes) {
@@ -677,6 +681,12 @@ function AsciiField() {
       const now = performance.now();
       while (wake.length && now - wake[0].time > 1050) wake.shift();
       while (clickPulses.length && now - clickPulses[0].startedAt >= 900) clickPulses.shift();
+      const activeClickPulses = clickPulses.map(({ x, y, startedAt }) => {
+        const progress = (now - startedAt) / 900;
+        const radius = 28 + shortEdge * 0.28 * (1 - (1 - progress) ** 2);
+        const envelope = smoothStep(progress / 0.18) * (1 - smoothStep((progress - 0.18) / 0.82));
+        return { x, y, radius, envelope, maxDistanceSquared: (radius * 1.18) ** 2 };
+      });
       let wakeLeft = Infinity;
       let wakeRight = -Infinity;
       let wakeTop = Infinity;
@@ -711,24 +721,21 @@ function AsciiField() {
 
               if (distanceSquared < stormNode.radiusSquared) {
                 const falloff = 1 - distanceSquared / stormNode.radiusSquared;
-                const cloudAffinity = Math.max(0, Math.min(1, (value - 0.12) / 0.38));
-                flash = Math.max(flash, falloff * falloff * stormNode.envelope * cloudAffinity);
+                const cloudAffinity = smoothStep((value + 0.04) / 0.55);
+                flash = Math.max(flash, smoothStep(falloff) * stormNode.envelope * cloudAffinity);
               }
             }
 
-            for (const pulse of clickPulses) {
-              const progress = (now - pulse.startedAt) / 900;
+            for (const pulse of activeClickPulses) {
               const dx = x - pulse.x;
               const dy = y - pulse.y;
+              const distanceSquared = dx * dx + dy * dy;
+              if (distanceSquared >= pulse.maxDistanceSquared) continue;
+
               const angle = Math.atan2(dy, dx);
               const edge = 1 + Math.sin(angle * 5 + time * 2) * 0.11 + Math.cos(angle * 9 - time) * 0.07;
-              const radius = (28 + progress * Math.min(width, height) * 0.28) * edge;
-              const distance = Math.hypot(dx, dy);
-              if (distance >= radius) continue;
-
-              const spatial = smoothStep(1 - distance / radius);
-              const envelope = Math.sin(Math.PI * progress);
-              clickPulse = Math.max(clickPulse, spatial * envelope);
+              const spatial = smoothStep(1 - Math.sqrt(distanceSquared) / (pulse.radius * edge));
+              clickPulse = Math.max(clickPulse, spatial * pulse.envelope);
             }
 
             if (
@@ -755,31 +762,34 @@ function AsciiField() {
               }
             }
 
-            const threshold = 0.36 - trail * 0.25 - stormFront * 0.052 - flash * 0.12 - clickPulse * 0.22;
+            const threshold = 0.22 - stormFront * 0.045 - flash * 0.15 - trail * 0.25 - clickPulse * 0.22;
 
-            if ((value > threshold || trail > 0.08 || clickPulse > 0.08) && (radius < 1.45 || clickPulse > 0.08)) {
-              const density = Math.max(0, Math.min(1, (value - threshold) / (1 - threshold) + trail * 1.05 + stormFront * 0.08 + flash * 0.22 + clickPulse * 0.5));
+            if (value > threshold || trail > 0.08 || clickPulse > 0.08) {
+              const cloud = smoothStep((value - threshold) / (1 - threshold));
+              const density = clamp(0.11 + cloud * 0.72 + trail * 0.76 + flash * 0.23 + clickPulse * 0.48, 0, 1);
               const depth = 0.42 + (1 - Math.min(radius, 1)) * 0.72;
               const offsetX = Math.round(-parallaxX * depth * 4);
               const offsetY = Math.round(-parallaxY * depth * 3);
-              const pulsePhase = (stormElapsed / 7_000) * Math.PI * 2 + nx * 2.6 - ny * 1.8;
-              const pulse = reduceMotion ? 0 : (Math.sin(pulsePhase) + 1) * 0.5;
-              const alpha = 0.06 + Math.max(0, value - threshold) * 0.12 + trail * 0.68 + stormFront * 0.08 + pulse * 0.035 + flash * 0.18 + clickPulse * 0.32;
+              const ambient = cloud * (0.25 + stormFront * 0.09);
+              const response = Math.max(trail * 0.37, flash * 0.25, clickPulse * 0.46);
               const renderedX = x + offsetX;
               const renderedY = y + offsetY;
 
-              context.globalAlpha = Math.min(0.72, alpha) * contentMask(renderedX, renderedY);
+              const alpha = Math.min(0.55, ambient + response) * contentMask(renderedX, renderedY) * intensity;
+              if (alpha < 0.008) continue;
+
+              context.globalAlpha = alpha;
               context.fillStyle = "#e7e7e7";
               context.fillText(
                 chars[Math.floor(density * (chars.length - 1))],
-                renderedX + 16,
-                renderedY + 16,
+                renderedX,
+                renderedY,
               );
             }
           }
         }
 
-        drawGranularDots(parallaxX, parallaxY, activeStormNodes);
+        drawGranularDots(parallaxX, parallaxY, activeStormNodes, intensity);
       }
 
       context.globalAlpha = 1;
@@ -791,7 +801,11 @@ function AsciiField() {
 
     const handleVisibility = () => {
       window.cancelAnimationFrame(frame);
-      if (!document.hidden) draw();
+      lastFrameTime = 0;
+      if (!document.hidden) {
+        refreshContentMask();
+        draw();
+      }
     };
     const handleMotionPreference = (event: MediaQueryListEvent) => {
       reduceMotion = event.matches;
@@ -802,28 +816,29 @@ function AsciiField() {
         clickPulses.length = 0;
         resetParallax();
       }
-      window.cancelAnimationFrame(frame);
-      if (!document.hidden) draw();
+      handleVisibility();
     };
 
     const resizeObserver = new ResizeObserver(() => {
       width = 0;
       height = 0;
       clearWake();
-      refreshContentMask();
-      if (!document.hidden) draw();
+      clickPulses.length = 0;
+      handleVisibility();
     });
-    const layoutObserver = new ResizeObserver(() => {
+    const updateContentMask = () => {
       refreshContentMask();
       if (reduceMotion && !document.hidden) draw();
-    });
+    };
+    const layoutObserver = new ResizeObserver(updateContentMask);
 
     resizeObserver.observe(canvas);
-    document.querySelectorAll<HTMLElement>(".content-layout, .utility, .bio-block, .stacks, .projects, .profile-column").forEach((element) => layoutObserver.observe(element));
+    document.querySelectorAll<HTMLElement>(".content-layout, .language-switch, .bio-block, .stacks, .projects, .profile-column").forEach((element) => layoutObserver.observe(element));
     refreshContentMask();
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
     window.addEventListener("pointerdown", handlePointerDown, { passive: true });
     window.addEventListener("pointerleave", resetParallax);
+    window.addEventListener("scroll", updateContentMask, { passive: true });
     document.addEventListener("visibilitychange", handleVisibility);
     motionQuery.addEventListener("change", handleMotionPreference);
     hoverQuery.addEventListener("change", handleHoverPreference);
@@ -836,6 +851,7 @@ function AsciiField() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("pointerleave", resetParallax);
+      window.removeEventListener("scroll", updateContentMask);
       document.removeEventListener("visibilitychange", handleVisibility);
       motionQuery.removeEventListener("change", handleMotionPreference);
       hoverQuery.removeEventListener("change", handleHoverPreference);
