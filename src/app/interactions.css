@@ -49,26 +49,27 @@
   83% { opacity: .22; clip-path: inset(20% 0 54%); transform: translateX(0); }
 }
 
-.launch-log { position: fixed; z-index: 3; top: 61%; left: 50%; transform: translateX(-50%); display: grid; gap: 4px; width: max-content; max-width: calc(100vw - 36px); color: var(--soft); font: 10px/1.45 var(--mono); pointer-events: none; transition: opacity .27s ease; }
+.launch-log { position: fixed; z-index: 3; left: max(clamp(18px, 3.5vw, 42px), env(safe-area-inset-left)); bottom: calc(clamp(20px, 4vh, 40px) + env(safe-area-inset-bottom)); display: grid; gap: 6px; width: max-content; max-width: calc(100vw - 36px - env(safe-area-inset-left) - env(safe-area-inset-right)); color: var(--soft); font: clamp(13px, 1.05vw, 16px)/1.45 var(--mono); pointer-events: none; transition: opacity .35s ease; }
 .launch-log span { background: var(--bg); width: fit-content; padding-inline: 3px; }
+.launch-log-cluster { animation: intro-copy .32s ease .45s both; }
 .launch-log[data-stage="ready"] { opacity: 0; }
 
 @media (prefers-reduced-motion: no-preference) {
-  :root:is([data-ascii-intro="pending"], [data-ascii-intro="assembling"]) .page:not(:focus-within) :is(.utility, .profile-column, .bio-block, .projects, .stacks, .music-card, .portfolio-status) { animation: none; opacity: 0; }
-  :root:is([data-ascii-intro="dispersing"], [data-ascii-intro="ready"]) .page-intro .profile-column { animation: intro-drift .38s ease-out both; }
-  :root:is([data-ascii-intro="dispersing"], [data-ascii-intro="ready"]) .page-intro .bio-block { animation: intro-copy .36s ease-out .13s both; }
-  :root:is([data-ascii-intro="dispersing"], [data-ascii-intro="ready"]) .page-intro .projects { animation: none; }
-  :root:is([data-ascii-intro="dispersing"], [data-ascii-intro="ready"]) .page-intro .project-card { animation: ascii-reveal .45s cubic-bezier(.22,1,.36,1) calc(220ms + var(--n) * 60ms) both; }
-  :root:is([data-ascii-intro="dispersing"], [data-ascii-intro="ready"]) .page-intro .stacks { animation: intro-copy .32s ease-out .34s both; }
-  :root:is([data-ascii-intro="dispersing"], [data-ascii-intro="ready"]) .page-intro .stack-item { animation: intro-drift .3s ease-out calc(350ms + var(--stack-index) * 15ms) both; }
-  :root:is([data-ascii-intro="dispersing"], [data-ascii-intro="ready"]) .page-intro :is(.music-card, .utility) { animation: intro-copy .32s ease-out .55s both; }
-  :root:is([data-ascii-intro="dispersing"], [data-ascii-intro="ready"]) .page-intro .portfolio-status { animation: intro-copy .28s ease-out .68s both; }
+  :root:is([data-ascii-intro="pending"], [data-ascii-intro="assembling"], [data-ascii-intro="dispersing"]) .page:not(:focus-within) :is(.utility, .profile-column, .bio-block, .projects, .stacks, .music-card, .portfolio-status) { animation: none; opacity: 0; }
+  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .profile-column { animation: intro-drift .38s ease-out both; }
+  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .bio-block { animation: intro-copy .36s ease-out .13s both; }
+  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .projects { animation: none; }
+  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .project-card { animation: ascii-reveal .45s cubic-bezier(.22,1,.36,1) calc(220ms + var(--n) * 60ms) both; }
+  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .stacks { animation: intro-copy .32s ease-out .34s both; }
+  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .stack-item { animation: intro-drift .3s ease-out calc(350ms + var(--stack-index) * 15ms) both; }
+  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro :is(.music-card, .utility) { animation: intro-copy .32s ease-out .55s both; }
+  :root:is([data-ascii-intro="revealing"], [data-ascii-intro="ready"]) .page-intro .portfolio-status { animation: intro-copy .28s ease-out .68s both; }
   :root[data-ascii-intro] .page-intro:focus-within :is(.utility, .profile-column, .bio-block, .projects, .project-card, .stacks, .stack-item, .music-card, .portfolio-status) { animation: none; opacity: 1; }
 }
 @keyframes intro-drift { from { opacity: 0; translate: 0 5px; } to { opacity: 1; translate: 0 0; } }
 @keyframes intro-copy { from { opacity: 0; } to { opacity: 1; } }
 
-.portfolio-status { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 15px; margin-top: 5px; padding-top: 9px; border-top: 1px solid var(--line); color: var(--muted); font: 10px/1.45 var(--mono); }
+.portfolio-status { align-self: end; width: min(1135.2px, 100%); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 15px; margin: clamp(22px, 3vw, 34px) auto 0; padding-top: 9px; border-top: 1px solid var(--line); color: var(--muted); font: 10px/1.45 var(--mono); }
 .portfolio-status-state > span { font-size: 8px; color: var(--soft); }
 .portfolio-status a { display: inline-flex; align-items: center; gap: .45em; margin-inline-start: auto; padding-block: 5px; color: var(--muted); text-decoration: none; }
 .portfolio-status a:hover, .portfolio-status a:focus-visible { color: var(--ink); }

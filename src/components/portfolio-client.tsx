@@ -305,8 +305,9 @@ async function getAuthorCommitCount(projectName: ProjectName, signal: AbortSigna
 }
 
 type ThemeWave = { x: number; y: number; radius: number; startedAt: number };
-type IntroStage = "idle" | "assembling" | "dispersing" | "ready";
+type IntroStage = "idle" | "assembling" | "dispersing" | "revealing" | "ready";
 const themeRevealDuration = 700;
+const introTiming = { disperse: 1450, reveal: 3650, settle: 4400, ready: 4650 };
 
 function AsciiField({ wave, repaint, onIntroStage }: {
   wave: RefObject<ThemeWave | null>;
@@ -370,7 +371,7 @@ function AsciiField({ wave, repaint, onIntroStage }: {
     let finePointer = hoverQuery.matches;
     let lastWakePoint: { x: number; y: number; time: number } | null = null;
     let introStarted = !reduceMotion && !document.hidden && root.dataset.asciiIntro === "pending" ? performance.now() : null;
-    let introDispersing = false;
+    let playingStage: IntroStage = "assembling";
     let fieldElement: HTMLElement | null = null;
     let fieldHovered = false;
     let fieldStrength = 0;
@@ -708,14 +709,17 @@ function AsciiField({ wave, repaint, onIntroStage }: {
       let spread = 1;
       if (introStarted !== null) {
         const elapsed = now - introStarted;
-        const progress = clamp((elapsed - 130) / 650, 0, 1);
-        spread = 0.075 + 0.925 * (1 - (1 - progress) ** 2.6);
-        if (progress >= 0.45 && !introDispersing) {
-          root.dataset.asciiIntro = "dispersing";
-          onIntroStage("dispersing");
-          introDispersing = true;
+        const progress = clamp((elapsed - introTiming.disperse) / (introTiming.settle - introTiming.disperse), 0, 1);
+        const cluster = 0.054 + 0.021 * smoothStep(elapsed / introTiming.disperse);
+        spread = cluster + (1 - cluster) * smoothStep(progress);
+        const stage = elapsed >= introTiming.reveal ? "revealing" : elapsed >= introTiming.disperse ? "dispersing" : "assembling";
+        if (elapsed >= introTiming.ready) {
+          finishIntro();
+        } else if (stage !== playingStage) {
+          root.dataset.asciiIntro = stage;
+          onIntroStage(stage);
+          playingStage = stage;
         }
-        if (progress === 1) finishIntro();
       }
       fieldStrength += ((fieldHovered && !reduceMotion ? 1 : 0) - fieldStrength) * (1 - Math.exp(-delta / 105));
       const fieldIsAvatar = fieldElement?.classList.contains("avatar-preview-trigger");
@@ -1431,10 +1435,10 @@ export default function PortfolioClient() {
   const socialLinksLabel = currentCopy.socialLinks;
   const isPlaying = track?.source === "spotify" || track?.source === "discord";
   const [bioLead, bioRest] = currentCopy.bio;
-  const assembling = introStage === "assembling" || introStage === "dispersing";
+  const assembling = introStage !== "idle" && introStage !== "ready";
   const launchMessages = language === "pt"
-    ? ["Tema aplicado", "Montando o fundo ASCII", "Interface pronta"]
-    : ["Theme applied", "Assembling ASCII background", "Interface ready"];
+    ? ["Tema aplicado", "Concentrando caracteres ASCII", "Dispersando caracteres pelo fundo", "Revelando a interface", "Interface pronta"]
+    : ["Theme applied", "Gathering ASCII characters", "Dispersing characters across the background", "Revealing the interface", "Interface ready"];
 
   return (
     <>
@@ -1443,8 +1447,10 @@ export default function PortfolioClient() {
       {introStage !== "idle" && (
         <div className="launch-log" data-stage={introStage} aria-hidden="true">
           <span>[OK] {launchMessages[0]}</span>
-          {introStage !== "assembling" && <span>[{assembling ? "··" : "OK"}] {launchMessages[1]}</span>}
-          {!assembling && <span>[OK] {launchMessages[2]}</span>}
+          <span className="launch-log-cluster">[{introStage === "assembling" ? "··" : "OK"}] {launchMessages[1]}</span>
+          {introStage !== "assembling" && <span>[{introStage === "ready" ? "OK" : "··"}] {launchMessages[2]}</span>}
+          {introStage === "revealing" && <span>[··] {launchMessages[3]}</span>}
+          {introStage === "ready" && <span>[OK] {launchMessages[4]}</span>}
         </div>
       )}
       <main className="page page-intro" aria-label={currentCopy.content}>
@@ -1665,20 +1671,20 @@ export default function PortfolioClient() {
               </p>
             </div>
           </SpotlightCard>
-          <footer className="portfolio-status" aria-label={language === "pt" ? "Status do portfólio" : "Portfolio status"}>
-            <span className="portfolio-status-state" role="status">
-              <span aria-hidden="true">●</span>{" "}
-              {assembling ? (language === "pt" ? "iniciando" : "starting") : (language === "pt" ? "sistema pronto" : "system ready")}
-            </span>
-            <span>v{portfolioVersion}</span>
-            <span>UTF-8</span>
-            <a href="https://github.com/renato0x/renato0x-website" target="_blank" rel="noopener noreferrer">
-              <span className="status-chevron" aria-hidden="true">&gt;</span>{" "}
-              {language === "pt" ? "ver repositório" : "view repository"}{" "}
-              <span aria-hidden="true">↗</span>
-            </a>
-          </footer>
         </div>
+        <footer className="portfolio-status" aria-label={language === "pt" ? "Status do portfólio" : "Portfolio status"}>
+          <span className="portfolio-status-state" role="status">
+            <span aria-hidden="true">●</span>{" "}
+            {assembling ? (language === "pt" ? "iniciando" : "starting") : (language === "pt" ? "sistema pronto" : "system ready")}
+          </span>
+          <span>v{portfolioVersion}</span>
+          <span>UTF-8</span>
+          <a href="https://github.com/renato0x/renato0x-website" target="_blank" rel="noopener noreferrer">
+            <span className="status-chevron" aria-hidden="true">&gt;</span>{" "}
+            {language === "pt" ? "ver repositório" : "view repository"}{" "}
+            <span aria-hidden="true">↗</span>
+          </a>
+        </footer>
       </main>
     </>
   );
