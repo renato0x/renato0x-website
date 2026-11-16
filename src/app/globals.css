@@ -72,10 +72,10 @@
   --spotlight-face-tail: rgb(39 53 60 / .012);
   --spotlight-edge: rgb(39 53 60 / .38);
   --spotlight-edge-mid: rgb(39 53 60 / .16);
-  --ascii-cloud: #3f4b55;
-  --ascii-grain: #68737a;
+  --ascii-cloud: #2e3941;
+  --ascii-grain: #58656d;
   --ascii-cloud-font: 600 11px ui-monospace, monospace;
-  --ascii-cloud-contrast: 1.55;
+  --ascii-cloud-contrast: 2.1;
 }
 
 ::selection { background: var(--selected-bg); color: var(--selected-ink); }
@@ -89,6 +89,7 @@ body { min-height: 100svh; }
 button { font: inherit; }
 
 .ascii-field { position: fixed; inset: -16px; width: calc(100% + 32px); height: calc(100% + 32px); z-index: 0; pointer-events: none; opacity: .9; }
+:root[data-theme="light"] .ascii-field { opacity: .98; }
 .page { min-height: 100svh; padding: clamp(20px, 3vw, 36px) clamp(20px, 3.5vw, 42px) clamp(32px, 5vw, 56px); display: grid; align-content: start; gap: clamp(26px, 5vw, 60px); position: relative; isolation: isolate; }
 .utility, .content-layout { width: min(1032px, 100%); margin-inline: auto; }
 .utility { display: flex; align-items: center; gap: 8px; justify-content: flex-end; position: relative; z-index: 2; }
@@ -105,7 +106,7 @@ button { font: inherit; }
 .preference-switch button:focus-visible, .socials a:focus-visible, .project-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .content-layout {
   display: grid;
-  grid-template-columns: minmax(0, .84fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 1fr);
   grid-template-areas:
     "profile profile"
     "bio projects"
@@ -221,7 +222,7 @@ button { font: inherit; }
 @keyframes ascii-reveal { 0% { opacity: 0; clip-path: inset(0 100% 0 0 round 4px); translate: -5px 0; } 16% { opacity: 1; } 86% { opacity: 1; clip-path: inset(0 0 0 0 round 4px); translate: 1px 0; } 100% { opacity: 1; clip-path: none; translate: 0 0; } }
 @keyframes ascii-trace { 0% { opacity: 0; clip-path: inset(0 0 0 100%); transform: translateX(10px); } 18% { opacity: .75; } 74% { opacity: .58; clip-path: inset(0); transform: translateX(0); } 100% { opacity: 0; transform: translateX(-9px); } }
 @keyframes soundwave { from { transform: scaleY(.34); } to { transform: scaleY(.84); } }
-.entry-ascii { position: absolute; z-index: 3; top: -.92em; right: 0; color: var(--ink); font: 7px/1 var(--mono); letter-spacing: .14em; pointer-events: none; animation: ascii-trace .58s cubic-bezier(.22, 1, .36, 1) both; }
+.entry-ascii { position: absolute; z-index: 3; top: -.92em; right: 0; color: var(--ink); font: 7px/1 var(--mono); letter-spacing: .14em; pointer-events: none; opacity: 0; animation: ascii-trace .58s cubic-bezier(.22, 1, .36, 1) both; }
 .entry-ascii--stacks { animation-delay: .12s; }
 .entry-ascii--projects { animation-delay: .2s; }
 .entry-ascii--profile { animation-delay: .08s; }

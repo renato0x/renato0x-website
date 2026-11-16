@@ -313,12 +313,11 @@ function AsciiField() {
     const root = document.documentElement;
     const readPalette = () => {
       const style = window.getComputedStyle(root);
-      const cloudContrast = Number(style.getPropertyValue("--ascii-cloud-contrast")) || 1;
       return {
         cloud: style.getPropertyValue("--ascii-cloud").trim(),
         grain: style.getPropertyValue("--ascii-grain").trim(),
         cloudFont: style.getPropertyValue("--ascii-cloud-font").trim(),
-        cloudContrast: cloudContrast * (root.dataset.theme === "light" ? 1.08 : 1),
+        cloudContrast: Number(style.getPropertyValue("--ascii-cloud-contrast")) || 1,
       };
     };
     let palette = readPalette();
@@ -332,7 +331,7 @@ function AsciiField() {
     const clickPulses: Array<{ x: number; y: number; startedAt: number }> = [];
     const maskTargets: Array<{ selector: string; strength: number; feather: number }> = [
       { selector: ".bio-block", strength: 0.94, feather: 46 },
-      { selector: ".stacks", strength: 0.68, feather: 26 },
+      { selector: ".stack-row", strength: 0.68, feather: 26 },
       { selector: ".project-card", strength: 0.79, feather: 14 },
       { selector: ".profile-head, .socials", strength: 0.85, feather: 28 },
       { selector: ".music-card", strength: 0.84, feather: 20 },
@@ -377,7 +376,7 @@ function AsciiField() {
           right: bounds.right - canvasBounds.left,
           bottom: bounds.bottom - canvasBounds.top,
           strength: target.strength,
-          feather: compact ? Math.min(target.feather, 12) : target.feather,
+          feather: compact ? Math.min(target.feather, 9) : target.feather,
         };
       }));
     };
@@ -696,7 +695,7 @@ function AsciiField() {
       while (clickPulses.length && now - clickPulses[0].startedAt >= 900) clickPulses.shift();
       const activeClickPulses = clickPulses.map(({ x, y, startedAt }) => {
         const progress = (now - startedAt) / 900;
-        const radius = 28 + shortEdge * 0.28 * (1 - (1 - progress) ** 2);
+        const radius = 28 + shortEdge * 0.31 * (1 - (1 - progress) ** 2);
         const envelope = smoothStep(progress / 0.18) * (1 - smoothStep((progress - 0.18) / 0.82));
         return { x, y, radius, envelope, maxDistanceSquared: (radius * 1.18) ** 2 };
       });
@@ -747,7 +746,10 @@ function AsciiField() {
 
               const angle = Math.atan2(dy, dx);
               const edge = 1 + Math.sin(angle * 5 + time * 2) * 0.11 + Math.cos(angle * 9 - time) * 0.07;
-              const spatial = smoothStep(1 - Math.sqrt(distanceSquared) / (pulse.radius * edge));
+              const distance = Math.sqrt(distanceSquared) / (pulse.radius * edge);
+              const core = smoothStep(1 - distance);
+              const rim = smoothStep(1 - Math.abs(distance - 0.7) / 0.3) * 0.3;
+              const spatial = Math.max(core, rim);
               clickPulse = Math.max(clickPulse, spatial * pulse.envelope);
             }
 
@@ -775,16 +777,17 @@ function AsciiField() {
               }
             }
 
-            const threshold = 0.16 - stormFront * 0.045 - flash * 0.15 - trail * 0.25 - clickPulse * 0.22;
+            const threshold = 0.14 - stormFront * 0.065 - flash * 0.15 - trail * 0.25 - clickPulse * 0.22;
 
             if (value > threshold || trail > 0.08 || clickPulse > 0.08) {
               const cloudDepth = clamp((value - threshold) / (1 - threshold), 0, 1);
               const cloud = smoothStep(cloudDepth) * 0.68 + cloudDepth * 0.32;
-              const density = clamp(0.11 + cloud * 0.72 + trail * 0.76 + flash * 0.23 + clickPulse * 0.48, 0, 1);
+              const crest = cloud * stormFront;
+              const density = clamp(0.12 + cloud * 0.72 + crest * 0.14 + trail * 0.76 + flash * 0.23 + clickPulse * 0.48, 0, 1);
               const depth = 0.42 + (1 - Math.min(Math.hypot(nx, ny), 1)) * 0.72;
               const offsetX = Math.round(-parallaxX * depth * 4);
               const offsetY = Math.round(-parallaxY * depth * 3);
-              const ambient = cloud * (0.44 + stormFront * 0.14);
+              const ambient = cloud * 0.47 + crest * 0.23;
               const response = Math.max(trail * 0.37, flash * 0.35, clickPulse * 0.62);
               const renderedX = x + offsetX;
               const renderedY = y + offsetY;
@@ -807,7 +810,7 @@ function AsciiField() {
 
       context.globalAlpha = 1;
       if (!reduceMotion && !document.hidden) {
-        time += delta * 0.00085;
+        time += delta * 0.00094;
         frame = window.requestAnimationFrame(draw);
       }
     };
