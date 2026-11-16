@@ -903,7 +903,7 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
     const margin = 12;
     const top = Math.max(margin, bounds.bottom + 12);
     const { clientWidth, clientHeight } = document.documentElement;
-    const size = Math.min(isCompact ? 280 : 340, clientWidth - margin * 2, clientHeight - top - margin);
+    const size = Math.min(isCompact ? 190 : 220, clientWidth - margin * 2, clientHeight - top - margin);
     if (size <= 0) return;
 
     const left = isCompact
