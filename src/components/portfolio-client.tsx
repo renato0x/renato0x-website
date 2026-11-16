@@ -110,8 +110,8 @@ const copy: Record<Language, PageCopy> = {
     content: "Conteúdo do portfólio",
     about: "Sobre renato0x",
     bio: [
-      "Sou Renato, tenho 18 anos e curso Análise e Desenvolvimento de Sistemas no IFNMG, em Montes Claros. Já passei por outros cursos na área, mas boa parte do que sei aprendi por conta própria, mexendo em computadores, testando coisas e tentando entender como tudo funciona. Sempre fui curioso com tecnologia, principalmente programação, e gosto de aprender na prática, criando projetos e experimentando ideias.",
-      "Atualmente, também faço estágio em suporte de TI, onde tenho contato com outras áreas da tecnologia. Fora isso, continuo estudando programação, trabalhando nos meus projetos pessoais e aprendendo coisas novas conforme vão surgindo meus interesses e dúvidas.",
+      "Sou Renato, tenho 18 anos e estudo Análise e Desenvolvimento de Sistemas no IFNMG, em Montes Claros. Sempre fui de mexer em tudo que envolvia tecnologia, principalmente computadores e programação. A curiosidade de entender como as coisas funcionam acabou me levando a fazer cursos na área, criar meus próprios projetos e aprender muita coisa por conta própria.",
+      "Atualmente, faço estágio em suporte de TI, mas continuo mexendo com programação no meu tempo livre. Gosto de testar coisas novas, entender o que estou fazendo e ir atrás das respostas quando alguma coisa não funciona como deveria.",
     ],
     bioHighlights: [
       { term: "IFNMG", description: "Instituto Federal do Norte de Minas Gerais" },
@@ -137,8 +137,8 @@ const copy: Record<Language, PageCopy> = {
     content: "Portfolio content",
     about: "About renato0x",
     bio: [
-      "I'm Renato, I'm 18, and I study Systems Analysis and Development at IFNMG in Montes Claros. I've taken other courses in the field, but I learned much of what I know on my own by tinkering with computers, testing things out, and trying to understand how it all works. I've always been curious about technology, especially programming, and I like learning by doing, building projects and experimenting with ideas.",
-      "I'm also doing an internship in IT support, where I get to work with other areas of technology. Outside of that, I keep studying programming, working on my personal projects, and learning new things as I find new interests and questions to explore.",
+      "I'm Renato, I'm 18, and I study Systems Analysis and Development at IFNMG in Montes Claros. I've always liked tinkering with anything to do with technology, especially computers and programming. Wanting to understand how things work led me to take courses in the field, build my own projects, and learn a lot on my own.",
+      "I'm currently an IT support intern, and I keep coding in my free time. I like trying new things, understanding what I'm doing, and looking for answers when something doesn't work the way it should.",
     ],
     bioHighlights: [
       { term: "IFNMG", description: "Federal Institute of Northern Minas Gerais" },
@@ -890,57 +890,27 @@ function AsciiField() {
 
 function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const hasPreviewPosition = useRef(false);
-  const previousPointerX = useRef<number | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [previewSize, setPreviewSize] = useState(108);
+  const [previewBounds, setPreviewBounds] = useState({ left: 0, top: 0, size: 0 });
   const reduceMotion = useReducedMotion();
-  const targetX = useMotionValue(-120);
-  const targetY = useMotionValue(-120);
-  const targetRotate = useMotionValue(0);
-  const x = useSpring(targetX, { stiffness: 300, damping: 30, mass: 0.3 });
-  const y = useSpring(targetY, { stiffness: 300, damping: 30, mass: 0.3 });
-  const rotate = useSpring(targetRotate, { stiffness: 300, damping: 20, mass: 0.3 });
 
   useEffect(() => setIsMounted(true), []);
 
-  const placePreview = (pointX: number, pointY: number) => {
-    const isCompact = window.matchMedia("(max-width: 760px)").matches;
-    const margin = 12;
-    const gap = isCompact ? 8 : 16;
-    const profileBounds = triggerRef.current?.closest(".profile-head")?.getBoundingClientRect();
-    let size = 120;
-    let left = pointX + gap;
-    let top = pointY - size - 42;
-
-    if (isCompact) {
-      size = Math.min(140, window.innerWidth - margin * 2, window.innerHeight - margin * 2);
-      left = (window.innerWidth - size) / 2;
-      top = (profileBounds?.bottom ?? pointY) + 12;
-    }
-
-    if (!isCompact && left + size > window.innerWidth - margin) left = pointX - size - gap;
-    if (!isCompact && top < margin) top = pointY + gap;
-    if (top + size > window.innerHeight - margin) top = pointY - size - gap;
-
-    const nextX = Math.max(margin, Math.min(left, window.innerWidth - size - margin));
-    const nextY = Math.max(margin, Math.min(top, window.innerHeight - size - margin));
-
-    setPreviewSize(size);
-    if (!hasPreviewPosition.current || reduceMotion) {
-      x.jump(nextX);
-      y.jump(nextY);
-      rotate.jump(0);
-      hasPreviewPosition.current = true;
-    }
-    targetX.set(nextX);
-    targetY.set(nextY);
-  };
-
-  const placeAtTrigger = (trigger: HTMLButtonElement) => {
+  const openPreview = (trigger: HTMLButtonElement) => {
     const bounds = trigger.getBoundingClientRect();
-    placePreview(bounds.right, bounds.top + bounds.height / 2);
+    const isCompact = window.matchMedia("(max-width: 700px)").matches;
+    const margin = 12;
+    const top = Math.max(margin, bounds.bottom + 12);
+    const { clientWidth, clientHeight } = document.documentElement;
+    const size = Math.min(isCompact ? 280 : 340, clientWidth - margin * 2, clientHeight - top - margin);
+    if (size <= 0) return;
+
+    const left = isCompact
+      ? (clientWidth - size) / 2
+      : Math.max(margin, Math.min(bounds.left, clientWidth - size - margin));
+    setPreviewBounds({ left, top, size });
+    setIsOpen(true);
   };
 
   useEffect(() => {
@@ -950,13 +920,15 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
       if (event.pointerType !== "touch" || triggerRef.current?.contains(event.target as Node)) return;
       setIsOpen(false);
     };
-    const closeOnScroll = () => setIsOpen(false);
+    const closePreview = () => setIsOpen(false);
 
     window.addEventListener("pointerdown", closeOnTouchOutside);
-    window.addEventListener("scroll", closeOnScroll, { passive: true });
+    window.addEventListener("scroll", closePreview, { passive: true });
+    window.addEventListener("resize", closePreview);
     return () => {
       window.removeEventListener("pointerdown", closeOnTouchOutside);
-      window.removeEventListener("scroll", closeOnScroll);
+      window.removeEventListener("scroll", closePreview);
+      window.removeEventListener("resize", closePreview);
     };
   }, [isOpen]);
 
@@ -965,7 +937,7 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
       id="profile-photo-preview"
       className="profile-photo-preview"
       data-open={isOpen}
-      style={{ x, y, rotate, width: previewSize, height: previewSize }}
+      style={{ left: previewBounds.left, top: previewBounds.top, width: previewBounds.size, height: previewBounds.size }}
       initial={{ opacity: 0, scale: 0.94 }}
       animate={isOpen ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.94 }}
       transition={reduceMotion ? { duration: 0 } : {
@@ -974,7 +946,7 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
       }}
       aria-hidden="true"
     >
-      <img src={src} alt="" width="360" height="480" draggable={false} />
+      <img src={src} alt="" width="1317" height="1317" draggable={false} />
     </motion.div>,
     document.body,
   ) : null;
@@ -989,44 +961,22 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
         aria-controls="profile-photo-preview"
         aria-expanded={isOpen}
         onPointerEnter={(event) => {
-          if (event.pointerType === "touch") return;
-          previousPointerX.current = event.clientX;
-          targetRotate.set(0);
-          placePreview(event.clientX, event.clientY);
-          setIsOpen(true);
-        }}
-        onPointerMove={(event) => {
-          if (event.pointerType === "touch" || !isOpen || reduceMotion) return;
-          placePreview(event.clientX, event.clientY);
-          if (previousPointerX.current !== null) {
-            const deltaX = event.clientX - previousPointerX.current;
-            targetRotate.set(Math.max(-6, Math.min(6, deltaX * 0.85)));
-          }
-          previousPointerX.current = event.clientX;
+          if (event.pointerType !== "touch") openPreview(event.currentTarget);
         }}
         onPointerLeave={(event) => {
           if (event.pointerType !== "touch" && !event.currentTarget.matches(":focus-visible")) {
-            previousPointerX.current = null;
-            targetRotate.set(0);
             setIsOpen(false);
           }
         }}
         onFocus={(event) => {
           if (!event.currentTarget.matches(":focus-visible")) return;
-          placeAtTrigger(event.currentTarget);
-          setIsOpen(true);
+          openPreview(event.currentTarget);
         }}
         onBlur={() => setIsOpen(false)}
         onClick={(event) => {
           if (!window.matchMedia("(hover: none)").matches) return;
-          if (event.detail === 0) {
-            placeAtTrigger(event.currentTarget);
-            setIsOpen(true);
-            return;
-          }
-          const next = !isOpen;
-          if (next) placeAtTrigger(event.currentTarget);
-          setIsOpen(next);
+          if (event.detail === 0 || !isOpen) openPreview(event.currentTarget);
+          else setIsOpen(false);
         }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -1034,12 +984,11 @@ function ProfilePhotoHoverPreview({ src, label }: { src: string; label: string }
             return;
           }
           if (event.key === "Enter" || event.key === " ") {
-            placeAtTrigger(event.currentTarget);
-            setIsOpen(true);
+            openPreview(event.currentTarget);
           }
         }}
       >
-        <img className="avatar" src={src} alt="" width="360" height="480" />
+        <img className="avatar" src={src} alt="" width="1317" height="1317" />
       </button>
       {preview}
     </>
@@ -1358,7 +1307,7 @@ export default function PortfolioClient() {
             <span className="entry-ascii entry-ascii--profile" aria-hidden="true">.:=+*#@</span>
             <div className="profile-head">
               <ProfilePhotoHoverPreview
-                src="/assets/renato0x.jpeg"
+                src="/assets/profile.jpeg"
                 label={language === "pt" ? "Prévia da foto de perfil de Renato Monteiro" : "Preview Renato Monteiro's profile photo"}
               />
               <div className="profile-details">
