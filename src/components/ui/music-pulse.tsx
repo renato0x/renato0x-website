@@ -28,7 +28,7 @@ function pulseSequence(random: () => number) {
   };
 
   const hit = (strength: number, short: boolean) => {
-    moveTo(1 + strength, short ? between(150, 185) : between(165, 220));
+    moveTo(1 + strength * .9, short ? between(150, 185) : between(165, 220));
     moveTo(1 - strength * .08, short ? between(180, 245) : between(270, 390));
     moveTo(1, between(100, 145));
   };
