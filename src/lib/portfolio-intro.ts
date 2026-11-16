@@ -1,5 +1,4 @@
 export const introTiming = {
-  gather: 900,
   header: 1040,
   profile: 1420,
   name: 1610,

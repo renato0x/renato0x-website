@@ -502,12 +502,30 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       return smoothStep(primary * 0.54 + cross * 0.31 + filaments * 0.15);
     };
 
+    type IntroDrift = { elapsed: number; distance: number };
+    const paintIntroGlyph = (glyph: string, x: number, y: number, alpha: number, intro: IntroDrift, fine = false) => {
+      const nx = x / width;
+      const ny = y / height;
+      const diagonal = nx * 0.64 + ny * 0.36;
+      const ripple = Math.sin(ny * 11 + nx * 5) * 0.11 + Math.sin(nx * 11 - ny * 7) * 0.07;
+      const travelTime = 1740;
+      const start = clamp((diagonal + ripple - 0.17) / 0.83, 0, 1) * (introTiming.settle - travelTime);
+      const progress = clamp((intro.elapsed - start + (fine ? 160 : 0)) / travelTime, 0, 1);
+      const remaining = (1 - progress) ** 2;
+      const distance = intro.distance * (fine ? 0.52 : 1) * remaining;
+      const driftX = distance * (0.83 + 0.17 * Math.sin(ny * 7 - nx * 3));
+      const driftY = distance * (0.33 + 0.12 * Math.sin(nx * 9 - ny * 5 + progress * 3));
+
+      context.globalAlpha = alpha * (0.15 + 0.85 * smoothStep(progress / 0.72));
+      context.fillText(glyph, x - driftX, y - driftY);
+    };
+
     const drawGranularDots = (
       parallaxX: number,
       parallaxY: number,
       stormNodes: ActiveStormNode[],
       intensity: number,
-      spread: number,
+      intro: IntroDrift | null,
     ) => {
       const stepX = width < 760 ? 25 : 20;
       const stepY = width < 760 ? 24 : 20;
@@ -556,11 +574,14 @@ function AsciiField({ wave, repaint, onIntroStep }: {
             (1 + stormBoost * 0.55) * intensity;
           if (alpha < 0.04) continue;
 
-          context.globalAlpha = Math.min(0.32, alpha) * (0.25 + 0.75 * spread);
+          const dotAlpha = Math.min(0.32, alpha);
           context.font = glyph === ":" ? "12px ui-monospace,monospace" : "11px ui-monospace,monospace";
-          context.fillText(glyph,
-            spread < 1 ? width / 2 + (maskedX - width / 2) * spread : maskedX,
-            spread < 1 ? height / 2 + (maskedY - height / 2) * spread : maskedY);
+          if (intro) {
+            paintIntroGlyph(glyph, maskedX, maskedY, dotAlpha, intro, true);
+          } else {
+            context.globalAlpha = dotAlpha;
+            context.fillText(glyph, maskedX, maskedY);
+          }
         }
       }
     };
@@ -720,14 +741,10 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       context.textBaseline = "middle";
 
       const now = performance.now();
-      let spread = 1;
-      let introInk = 1;
+      let intro: IntroDrift | null = null;
       if (introStarted !== null) {
         const elapsed = now - introStarted;
-        const progress = clamp((elapsed - introTiming.gather) / (introTiming.settle - introTiming.gather), 0, 1);
-        const cluster = 0.15 - 0.075 * smoothStep(elapsed / introTiming.gather);
-        spread = cluster + (1 - cluster) * smoothStep(progress);
-        introInk = 0.38 + 0.62 * smoothStep(elapsed / 730);
+        if (elapsed < introTiming.settle) intro = { elapsed, distance: compactQuery.matches ? 24 : 36 };
         if (elapsed >= introTiming.ready) {
           finishIntro();
         } else {
@@ -926,17 +943,18 @@ function AsciiField({ wave, repaint, onIntroStep }: {
               const alpha = Math.min(0.68, (ambient + response + influence * 0.15 + cardInk * 0.31) * palette.cloudContrast) * contentMask(renderedX, renderedY) * intensity;
               if (alpha < 0.008) continue;
 
-              context.globalAlpha = alpha * (0.25 + 0.75 * spread) * introInk;
-              context.fillText(
-                chars[Math.floor(density * (chars.length - 1))],
-                spread < 1 ? width / 2 + (renderedX - width / 2) * spread + Math.sin(y * 0.075 + time * 8) * (1 - spread) * 11 : renderedX,
-                spread < 1 ? height / 2 + (renderedY - height / 2) * spread : renderedY,
-              );
+              const glyph = chars[Math.floor(density * (chars.length - 1))];
+              if (intro) {
+                paintIntroGlyph(glyph, renderedX, renderedY, alpha, intro);
+              } else {
+                context.globalAlpha = alpha;
+                context.fillText(glyph, renderedX, renderedY);
+              }
             }
           }
         }
 
-        drawGranularDots(parallaxX, parallaxY, activeStormNodes, intensity, spread);
+        drawGranularDots(parallaxX, parallaxY, activeStormNodes, intensity, intro);
       }
 
       context.globalAlpha = 1;
