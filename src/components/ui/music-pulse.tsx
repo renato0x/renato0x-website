@@ -28,21 +28,21 @@ function pulseSequence(random: () => number) {
   };
 
   const hit = (strength: number, short: boolean) => {
-    moveTo(1 + strength * .9, short ? between(150, 185) : between(165, 220));
-    moveTo(1 - strength * .08, short ? between(180, 245) : between(270, 390));
+    moveTo(1 + strength * .015, short ? between(150, 185) : between(165, 220));
+    moveTo(1 - strength * .00168, short ? between(180, 245) : between(270, 390));
     moveTo(1, between(100, 145));
   };
 
   for (let index = 0; index < 10; index += 1) {
-    const strength = between(.014, .021);
+    const strength = between(2 / 3, 1);
     const double = random() < .23;
     hit(strength, double);
     if (double) {
-      moveTo(1, between(110, 170));
+      moveTo(1, between(170, 230));
       hit(strength * between(.67, .8), true);
     }
 
-    moveTo(1, random() < .15 ? between(455, 550) : between(245, 365));
+    moveTo(1, random() < .15 ? between(590, 685) : between(375, 495));
   }
 
   for (const frame of frames) frame.offset /= time;
