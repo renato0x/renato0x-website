@@ -41,7 +41,7 @@ type PageCopy = {
   title: string;
   content: string;
   about: string;
-  bio: string;
+  bio: readonly [string, string, string];
   bioHighlights: readonly CodeLeafMark[];
   technologies: string;
   technologyList: string;
@@ -109,10 +109,13 @@ const copy: Record<Language, PageCopy> = {
     title: pageTitle,
     content: "Conteúdo do portfólio",
     about: "Sobre renato0x",
-    bio: "Sou Renato, Tenho 18 anos e curso Análise e Desenvolvimento de Sistemas no IFNMG, em Montes Claros. Em desenvolvimento de sistemas, estou no meu terceiro curso. Desde cedo, sou curioso sobre tecnologia e sempre quis entender como as coisas funcionam. Aprendi muito na prática: fuçando computadores, experimentando programação e seguindo cada dúvida até encontrar uma resposta. Ainda estou descobrindo meu espaço na área, mas gosto justamente desse processo — testar, errar e, aos poucos, entender o que acontece por trás da tela.",
+    bio: [
+      "Sou Renato, tenho 18 anos e curso Análise e Desenvolvimento de Sistemas no IFNMG, em Montes Claros. Já passei por outros cursos na área, mas boa parte do que sei aprendi por conta própria, mexendo, testando e tentando entender como as coisas funcionam.",
+      "Sempre gostei de tecnologia, principalmente de programação. Gosto de criar projetos, experimentar ideias e descobrir maneiras diferentes de resolver problemas. Nem sempre tudo funciona de primeira, mas faz parte.",
+      "Atualmente, também faço estágio em suporte de TI. Fora isso, sigo estudando programação, desenvolvendo meus projetos e aprendendo coisas novas conforme vou encontrando algo que me interessa.",
+    ],
     bioHighlights: [
       { term: "IFNMG", description: "Instituto Federal do Norte de Minas Gerais" },
-      { term: "desenvolvimento de sistemas", description: "conclusão em 2028" },
     ],
     technologies: "Tecnologias usadas",
     technologyList: "Tecnologias",
@@ -134,10 +137,13 @@ const copy: Record<Language, PageCopy> = {
     title: pageTitle,
     content: "Portfolio content",
     about: "About renato0x",
-    bio: "I’m Renato, I'm 18, studying Systems Analysis and Development at IFNMG in Montes Claros. I'm now on my third course in systems development. I've been curious about technology for as long as I can remember, always wanting to understand how things work. I've learned a lot by doing: tinkering with computers, trying out programming, and following each question until I find an answer. I'm still figuring out where I fit in the field, but I enjoy the process: trying things, making mistakes, and gradually understanding what's happening behind the screen.",
+    bio: [
+      "I'm Renato, I'm 18, and I study Systems Analysis and Development at IFNMG in Montes Claros. I've taken other courses in the field, but I've learned much of what I know on my own by tinkering, testing things, and trying to understand how they work.",
+      "I've always liked technology, especially programming. I enjoy building projects, trying out ideas, and finding different ways to solve problems. Things don't always work on the first try, but that's part of it.",
+      "I'm currently doing an internship in IT support. Outside of that, I keep studying programming, building my own projects, and learning new things whenever something catches my interest.",
+    ],
     bioHighlights: [
       { term: "IFNMG", description: "Federal Institute of Northern Minas Gerais" },
-      { term: "systems development", description: "expected completion in 2028" },
     ],
     technologies: "Technologies",
     technologyList: "Technologies",
@@ -1294,9 +1300,7 @@ export default function PortfolioClient() {
   const profileLabel = currentCopy.profile;
   const socialLinksLabel = currentCopy.socialLinks;
   const isPlaying = track?.source === "spotify" || track?.source === "discord";
-  const firstSentenceEnd = currentCopy.bio.indexOf(". ") + 1;
-  const bioLead = currentCopy.bio.slice(0, firstSentenceEnd || undefined);
-  const bioRest = currentCopy.bio.slice(bioLead.length).trimStart();
+  const [bioLead, ...bioRest] = currentCopy.bio;
 
   return (
     <>
@@ -1464,16 +1468,13 @@ export default function PortfolioClient() {
           </section>
 
           <section className="bio-block bio-rest">
-            <p>
-              <LocaleSwap
-                block
-                ready={localeMotionReady}
-                transitionId={localeTransitionId}
-                highlightTerms={currentCopy.bioHighlights}
-              >
-                {bioRest}
-              </LocaleSwap>
-            </p>
+            {bioRest.map((paragraph, index) => (
+              <p key={index}>
+                <LocaleSwap block ready={localeMotionReady} transitionId={localeTransitionId}>
+                  {paragraph}
+                </LocaleSwap>
+              </p>
+            ))}
           </section>
 
           <section className="stacks" aria-label={technologiesLabel}>
