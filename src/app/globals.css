@@ -80,6 +80,46 @@
 
 ::selection { background: var(--selected-bg); color: var(--selected-ink); }
 
+@property --spotify-primary { syntax: "<color>"; inherits: true; initial-value: #bababa; }
+@property --spotify-secondary { syntax: "<color>"; inherits: true; initial-value: #929292; }
+
+:root[data-theme="spotify"] {
+  --spotify-accent: var(--spotify-primary, #bababa);
+  --spotify-support: var(--spotify-secondary, #929292);
+  --bg: color-mix(in srgb, #07080a 94%, var(--spotify-accent));
+  --panel: color-mix(in srgb, #0b0d11 88%, var(--spotify-support));
+  --panel-hi: color-mix(in srgb, #101217 81%, var(--spotify-accent));
+  --surface: color-mix(in srgb, #0c0e13 86%, var(--spotify-accent));
+  --control-surface: color-mix(in srgb, var(--panel) 88%, transparent);
+  --hover-surface: var(--panel-hi);
+  --pressed-surface: var(--surface);
+  --ink: color-mix(in srgb, #fff 88%, var(--spotify-accent));
+  --soft: color-mix(in srgb, #fff 57%, var(--spotify-accent));
+  --muted: color-mix(in srgb, #fff 32%, var(--spotify-support));
+  --dim: color-mix(in srgb, #ccc 54%, var(--spotify-support));
+  --line: color-mix(in srgb, var(--panel) 76%, var(--spotify-support));
+  --control-line: color-mix(in srgb, var(--panel) 42%, var(--spotify-accent));
+  --line-strong: color-mix(in srgb, var(--panel) 28%, var(--spotify-accent));
+  --focus: color-mix(in srgb, #fff 30%, var(--spotify-accent));
+  --selected-bg: var(--focus);
+  --selected-ink: #090a0c;
+  --icon-filter: url("#spotify-icon-tone");
+  --card-line: var(--line);
+  --card-line-active: var(--line-strong);
+  --card-active: color-mix(in srgb, var(--panel-hi) 54%, transparent);
+  --project-surface: linear-gradient(140deg, color-mix(in srgb, var(--spotify-accent) 10%, transparent), transparent 66%), color-mix(in srgb, var(--panel) 60%, transparent);
+  --music-surface: linear-gradient(140deg, color-mix(in srgb, var(--spotify-support) 14%, transparent), transparent 72%), color-mix(in srgb, var(--panel) 70%, transparent);
+  --spotlight-face: color-mix(in srgb, var(--spotify-accent) 14%, transparent);
+  --spotlight-face-mid: color-mix(in srgb, var(--spotify-accent) 7%, transparent);
+  --spotlight-face-tail: color-mix(in srgb, var(--spotify-accent) 2%, transparent);
+  --spotlight-edge: color-mix(in srgb, var(--spotify-accent) 52%, transparent);
+  --spotlight-edge-mid: color-mix(in srgb, var(--spotify-accent) 20%, transparent);
+  --ascii-cloud: var(--spotify-accent);
+  --ascii-grain: var(--spotify-support);
+  --ascii-cloud-contrast: 1.24;
+}
+.spotify-icon-palette { position: absolute; pointer-events: none; }
+
 @property --spotlight-x { syntax: "<length-percentage>"; inherits: false; initial-value: 0px; }
 @property --spotlight-y { syntax: "<length-percentage>"; inherits: false; initial-value: 0px; }
 
@@ -101,7 +141,9 @@ button { font: inherit; }
 .preference-label { position: relative; z-index: 1; }
 .preference-indicator { position: absolute; z-index: 0; inset: 0; border-radius: inherit; background: var(--selected-bg); pointer-events: none; }
 .theme-switch button { display: grid; place-items: center; min-width: 39.6px; }
-:root:not([data-theme="light"]) .theme-switch[data-pending] button[data-theme-choice="dark"],
+:root[data-theme="dark"] .theme-switch[data-pending] button[data-theme-choice="dark"],
+:root:not([data-theme]) .theme-switch[data-pending] button[data-theme-choice="dark"],
+:root[data-theme="spotify"] .theme-switch[data-pending] button[data-theme-choice="spotify"],
 :root[data-theme="light"] .theme-switch[data-pending] button[data-theme-choice="light"] { color: var(--selected-ink); background: var(--selected-bg); }
 .scrambled-text { color: var(--dim); }
 .preference-switch button:active { transform: scale(.96); }

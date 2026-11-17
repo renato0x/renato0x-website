@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
@@ -9,8 +9,10 @@ import type { CodeLeafMark } from "@/components/ui/code-leaf";
 import { EncryptedText } from "@/components/ui/encrypted-text";
 import { HoverTooltip } from "@/components/ui/hover-tooltip";
 import { MusicPulse } from "@/components/ui/music-pulse";
+import { PortfolioTerminal, terminalDuration } from "@/components/ui/portfolio-terminal";
 import { SpotlightCard } from "@/components/ui/spotlight-card";
-import { asciiIntroStorageKey, isTheme, lightThemeQuery, themeStorageKey } from "@/lib/theme";
+import { useSpotifyPalette } from "@/components/use-spotify-palette";
+import { asciiIntroStorageKey, isTheme, lightThemeQuery, themes, themeStorageKey } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
 import { PortfolioCursor } from "@/components/ui/portfolio-cursor";
 import { introLogs, introTiming } from "@/lib/portfolio-intro";
@@ -30,6 +32,17 @@ type Track = {
 const profileDisplayName = "Renato Monteiro";
 const profileAlias = "renato0x";
 const pageTitle = "renato0x";
+const githubProfile = "https://github.com/renato0x";
+const portfolioRepository = "https://github.com/renato0x/renato0x-website";
+const projectAliases: Record<ProjectName, string[]> = {
+  "SUB-SEEMG": ["sub", "seemg"],
+  CashPad: ["cash"],
+  Transcrypty: ["transcrypt", "trans"],
+};
+const themeLabels: Record<Language, Record<Theme, string>> = {
+  pt: { light: "Tema claro", dark: "Tema escuro", spotify: "Tema Spotify" },
+  en: { light: "Light theme", dark: "Dark theme", spotify: "Spotify theme" },
+};
 
 type Project = {
   name: ProjectName;
@@ -308,6 +321,7 @@ async function getAuthorCommitCount(projectName: ProjectName, signal: AbortSigna
 
 type ThemeWave = { x: number; y: number; radius: number; startedAt: number; reveal?: Animation };
 type ThemeReveal = { x: number; y: number; radiusSquared: number };
+type TerminalMotion = { bounds: DOMRect; opening: boolean; startedAt: number };
 const themeRevealDuration = 700;
 const introStyle = Object.fromEntries(Object.entries(introTiming).map(([key, value]) => [`--intro-${key}`, `${value}ms`])) as CSSProperties;
 
@@ -319,9 +333,10 @@ function IntroOutline() {
   );
 }
 
-function AsciiField({ wave, repaint, onIntroStep }: {
+function AsciiField({ wave, repaint, terminalMotion, onIntroStep }: {
   wave: RefObject<ThemeWave | null>;
   repaint: RefObject<(() => void) | null>;
+  terminalMotion: RefObject<TerminalMotion | null>;
   onIntroStep: (step: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -346,6 +361,7 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       };
     };
     let palette = readPalette();
+    let lastPaletteSample = 0;
 
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     const hoverQuery = window.matchMedia("(any-hover: hover) and (any-pointer: fine)");
@@ -405,7 +421,7 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       onIntroStep(-1);
     };
     const handleIntroFocus = (event: FocusEvent) => {
-      if (introStarted !== null && event.target instanceof Element && event.target.closest(".page")) finishIntro();
+      if (introStarted !== null && event.target instanceof Element && event.target.closest(".page, .terminal-dock")) finishIntro();
     };
     const handleIntroKey = (event: KeyboardEvent) => {
       if (introStarted !== null && event.key === "Escape") finishIntro();
@@ -684,6 +700,7 @@ function AsciiField({ wave, repaint, onIntroStep }: {
 
     const handlePointerDown = (event: PointerEvent) => {
       if (introStarted !== null || reduceMotion) return;
+      if (event.target instanceof Element && event.target.closest(".terminal-dock")) return;
       if (typeof document.startViewTransition === "function" && event.target instanceof Element &&
           event.target.closest('.theme-switch button[aria-pressed="false"]')) return;
 
@@ -764,6 +781,10 @@ function AsciiField({ wave, repaint, onIntroStep }: {
     const draw = (timestamp = performance.now()) => {
       const delta = lastFrameTime ? Math.min(timestamp - lastFrameTime, 50) : 1000 / 60;
       lastFrameTime = timestamp;
+      if (root.dataset.theme === "spotify" && root.dataset.spotifyPalette === "moving" && timestamp - lastPaletteSample > 42) {
+        palette = readPalette();
+        lastPaletteSample = timestamp;
+      }
       const ratio = window.devicePixelRatio || 1;
       if (!width || !height || ratio !== canvasRatio) {
         width = canvas.clientWidth;
@@ -806,6 +827,16 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       const fieldRight = fieldLeft + (field?.width ?? 0);
       const fieldBottom = fieldTop + (field?.height ?? 0);
       const fieldRange = fieldIsCard ? 61 : fieldIsAvatar ? 56 : 26;
+      const terminal = reduceMotion || introStarted !== null ? null : terminalMotion.current;
+      const terminalProgress = terminal ? clamp((now - terminal.startedAt) / terminalDuration, 0, 1) : 1;
+      const terminalExtent = terminal?.opening ? 1 - (1 - terminalProgress) ** 3 : (1 - terminalProgress) ** 3;
+      const terminalField = terminal && terminalProgress < 1 ? {
+        left: terminal.bounds.left - canvasBounds.left,
+        top: terminal.bounds.top - canvasBounds.top,
+        width: Math.min(80, terminal.bounds.width) + Math.max(0, terminal.bounds.width - 80) * terminalExtent,
+        height: Math.min(40, terminal.bounds.height) + Math.max(0, terminal.bounds.height - 40) * terminalExtent,
+        energy: smoothStep(terminalProgress / .18) * (1 - smoothStep((terminalProgress - .28) / .72)),
+      } : null;
       const activeWave = reduceMotion ? null : wave.current;
       const revealTime = activeWave?.reveal?.currentTime;
       const waveElapsed = activeWave ? (typeof revealTime === "number" ? revealTime : now - activeWave.startedAt) : themeRevealDuration;
@@ -917,6 +948,17 @@ function AsciiField({ wave, repaint, onIntroStep }: {
               }
               fieldOffsetX = (Math.sign(dx) * (fieldIsCard ? 7 : 4) + Math.sin(y * 0.35 + time * 25) * avatarGlitch * 9) * influence;
               fieldOffsetY = Math.sign(dy) * 5 * influence;
+            }
+            if (terminalField && x > terminalField.left - 48 && x < terminalField.left + terminalField.width + 48 &&
+                y > terminalField.top - 48 && y < terminalField.top + terminalField.height + 48) {
+              const dx = x - clamp(x, terminalField.left, terminalField.left + terminalField.width);
+              const dy = y - clamp(y, terminalField.top, terminalField.top + terminalField.height);
+              const distance = Math.hypot(dx, dy);
+              const pressure = smoothStep(1 - distance / 48) * terminalField.energy;
+              influence = Math.max(influence, pressure);
+              cardInk = Math.max(cardInk, pressure * smoothStep(distance / 12) * cellNoise(x, y, 8));
+              fieldOffsetX += Math.sign(dx) * pressure * 8;
+              fieldOffsetY += Math.sign(dy) * pressure * 7;
             }
             if (activeWave && waveProgress < 1) {
               const dx = x - waveX;
@@ -1077,7 +1119,7 @@ function AsciiField({ wave, repaint, onIntroStep }: {
     };
 
     resizeObserver.observe(canvas);
-    paletteObserver.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    paletteObserver.observe(root, { attributes: true, attributeFilter: ["data-theme", "data-spotify-palette"] });
     const layoutTargets = [".content-layout", ...maskTargets.map(({ selector }) => selector)].join(", ");
     document.querySelectorAll<HTMLElement>(layoutTargets).forEach((element) => layoutObserver.observe(element));
     refreshContentMask();
@@ -1115,7 +1157,7 @@ function AsciiField({ wave, repaint, onIntroStep }: {
       motionQuery.removeEventListener("change", handleMotionPreference);
       hoverQuery.removeEventListener("change", handleHoverPreference);
     };
-  }, [pointerTargetX, pointerTargetY, pointerX, pointerY, wave, repaint, onIntroStep]);
+  }, [pointerTargetX, pointerTargetY, pointerX, pointerY, wave, repaint, terminalMotion, onIntroStep]);
 
   return <canvas ref={canvasRef} className="ascii-field" aria-hidden="true" />;
 }
@@ -1262,6 +1304,7 @@ export default function PortfolioClient() {
   const themeTransition = useRef<ViewTransition | null>(null);
   const wave = useRef<ThemeWave | null>(null);
   const repaint = useRef<(() => void) | null>(null);
+  const terminalMotion = useRef<TerminalMotion | null>(null);
   const [introStep, setIntroStep] = useState(-1);
   const [localeMotionReady, setLocaleMotionReady] = useState(false);
   const [localeTransitionId, setLocaleTransitionId] = useState(0);
@@ -1277,6 +1320,8 @@ export default function PortfolioClient() {
     "SUB-SEEMG": 27,
   });
   const [track, setTrack] = useState<Track | null>(null);
+  const isPlaying = track?.source === "spotify" || track?.source === "discord";
+  useSpotifyPalette(track?.cover, isPlaying);
   const [failedCover, setFailedCover] = useState<string | null>(null);
   const [profileName, setProfileName] = useState(profileDisplayName);
   const [isProfileNameTransitioning, setIsProfileNameTransitioning] = useState(false);
@@ -1490,7 +1535,7 @@ export default function PortfolioClient() {
     }
   };
 
-  const changeTheme = (next: Theme, trigger: HTMLButtonElement) => {
+  const changeTheme = (next: Theme) => {
     const root = document.documentElement;
     const current = manualTheme.current ?? root.dataset.theme;
     manualTheme.current = next;
@@ -1505,7 +1550,9 @@ export default function PortfolioClient() {
       root.dataset.theme = next;
       setTheme(next);
     };
-    if (reduceMotion || document.hidden || !document.startViewTransition || themeTransition.current) {
+    const trigger = document.querySelector<HTMLButtonElement>(`.theme-switch [data-theme-choice="${next}"]`);
+    if (!trigger || matchMedia("(prefers-reduced-motion: reduce)").matches ||
+        document.hidden || !document.startViewTransition || themeTransition.current) {
       themeTransition.current?.skipTransition();
       wave.current = null;
       apply();
@@ -1552,7 +1599,9 @@ export default function PortfolioClient() {
   const technologiesLabel = currentCopy.technologies;
   const profileLabel = currentCopy.profile;
   const socialLinksLabel = currentCopy.socialLinks;
-  const isPlaying = track?.source === "spotify" || track?.source === "discord";
+  const animateTerminal = useCallback((bounds: DOMRect, opening: boolean) => {
+    terminalMotion.current = { bounds, opening, startedAt: performance.now() };
+  }, []);
   const [bioLead, bioRest] = currentCopy.bio;
   const assembling = introStep >= 0;
   const currentIntroLog = introLogs[introStep];
@@ -1560,8 +1609,26 @@ export default function PortfolioClient() {
 
   return (
     <>
-      <AsciiField wave={wave} repaint={repaint} onIntroStep={setIntroStep} />
+      <AsciiField wave={wave} repaint={repaint} terminalMotion={terminalMotion} onIntroStep={setIntroStep} />
       <PortfolioCursor />
+      <svg className="spotify-icon-palette" width="0" height="0" aria-hidden="true" focusable="false">
+        <filter id="spotify-icon-tone" colorInterpolationFilters="sRGB">
+          <feFlood style={{ floodColor: "var(--soft)" }} />
+          <feComposite in2="SourceAlpha" operator="in" />
+        </filter>
+      </svg>
+      <PortfolioTerminal
+        language={language}
+        theme={theme}
+        about={currentCopy.bio}
+        projects={projects.map((project) => ({ ...project, aliases: projectAliases[project.name] }))}
+        github={githubProfile}
+        repository={portfolioRepository}
+        track={track}
+        onTheme={changeTheme}
+        onLanguage={changeLanguage}
+        onMotion={animateTerminal}
+      />
       <main className="page page-intro" aria-label={currentCopy.content} style={introStyle}>
         <header className="utility">
           {assembling && (
@@ -1574,16 +1641,14 @@ export default function PortfolioClient() {
             </div>
           )}
           <div className="preference-switch theme-switch" data-pending={theme === null || undefined} role="group" aria-label={language === "pt" ? "Tema" : "Theme"}>
-            {(["light", "dark"] as const).map((option) => (
+            {themes.map((option) => (
               <button
                 key={option}
                 type="button"
                 data-theme-choice={option}
-                aria-label={option === "light"
-                  ? (language === "pt" ? "Tema claro" : "Light theme")
-                  : (language === "pt" ? "Tema escuro" : "Dark theme")}
+                aria-label={themeLabels[language][option]}
                 aria-pressed={theme === option}
-                onClick={(event) => changeTheme(option, event.currentTarget)}
+                onClick={() => changeTheme(option)}
               >
                 {theme === option && (
                   <motion.span
@@ -1598,7 +1663,9 @@ export default function PortfolioClient() {
                       <circle cx="12" cy="12" r="4" />
                       <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19m0-14-1.5 1.5m-11 11L5 19" />
                     </>
-                  ) : <path d="M20.5 14.4A8.7 8.7 0 0 1 9.6 3.5a8.7 8.7 0 1 0 10.9 10.9Z" />}
+                  ) : option === "dark"
+                    ? <path d="M20.5 14.4A8.7 8.7 0 0 1 9.6 3.5a8.7 8.7 0 1 0 10.9 10.9Z" />
+                    : <><path d="M9 17V6l12-2v11" /><ellipse cx="6" cy="17.5" rx="3" ry="2.5" /><ellipse cx="18" cy="15.5" rx="3" ry="2.5" /></>}
                 </svg>
               </button>
             ))}
@@ -1660,7 +1727,7 @@ export default function PortfolioClient() {
               <HoverTooltip as="a" label="Instagram" href="https://www.instagram.com/renato0x/" target="_blank" rel="noreferrer">
                 <img src="/assets/social/instagram.svg" alt="" width="17" height="17" />
               </HoverTooltip>
-              <HoverTooltip as="a" label="GitHub" href="https://github.com/renato0x" target="_blank" rel="noreferrer">
+              <HoverTooltip as="a" label="GitHub" href={githubProfile} target="_blank" rel="noreferrer">
                 <img src="/assets/social/github.svg" alt="" width="17" height="17" />
               </HoverTooltip>
               <HoverTooltip as="a" label="Discord" href="https://discord.com/users/726487228187934723" target="_blank" rel="noreferrer">
@@ -1807,7 +1874,7 @@ export default function PortfolioClient() {
             <span>v{portfolioVersion}</span>
             <span>UTF-8</span>
           </div>
-          <a href="https://github.com/renato0x/renato0x-website" target="_blank" rel="noopener noreferrer">
+          <a href={portfolioRepository} target="_blank" rel="noopener noreferrer">
             <span className="status-chevron" aria-hidden="true">&gt;</span>{" "}
             {language === "pt" ? "ver repositório" : "view repository"}{" "}
             <span aria-hidden="true">↗</span>
