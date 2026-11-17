@@ -43,6 +43,7 @@ export function PortfolioTerminal(props: TerminalProps) {
   const historyIndex = useRef(0);
   const draft = useRef("");
   const previousFocus = useRef<HTMLElement | null>(null);
+  const dock = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
   const field = useRef<HTMLInputElement>(null);
@@ -99,14 +100,23 @@ export function PortfolioTerminal(props: TerminalProps) {
   }, [open, toggle]);
 
   useEffect(() => {
-    if (!open) return;
     const viewport = window.visualViewport;
-    if (!viewport) return;
-    const fit = () => panel.current?.style.setProperty("--terminal-visible-height", `${viewport.height}px`);
+    const element = dock.current;
+    if (!viewport || !element) return;
+    const fit = () => {
+      element.style.setProperty("--terminal-viewport-x", `${viewport.offsetLeft}px`);
+      element.style.setProperty("--terminal-viewport-y", `${viewport.offsetTop}px`);
+      element.style.setProperty("--terminal-visible-width", `${viewport.width}px`);
+      element.style.setProperty("--terminal-visible-height", `${viewport.height}px`);
+    };
     fit();
+    viewport.addEventListener("scroll", fit, { passive: true });
     viewport.addEventListener("resize", fit);
-    return () => viewport.removeEventListener("resize", fit);
-  }, [open]);
+    return () => {
+      viewport.removeEventListener("scroll", fit);
+      viewport.removeEventListener("resize", fit);
+    };
+  }, []);
 
   useEffect(() => {
     if (open && log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -189,7 +199,7 @@ export function PortfolioTerminal(props: TerminalProps) {
   };
 
   return (
-    <div className="terminal-dock">
+    <div className="terminal-dock" ref={dock}>
       <button
         ref={trigger}
         type="button"
