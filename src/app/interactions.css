@@ -128,8 +128,9 @@
 .portfolio-status { align-self: end; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin-top: clamp(22px, 3vw, 34px); color: var(--muted); font: 10px/1.45 var(--mono); }
 .portfolio-status-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px clamp(8px, 1.5vw, 15px); }
 .portfolio-status-state > span { font-size: 8px; color: var(--soft); }
-.portfolio-status a { display: inline-flex; align-items: center; gap: .45em; margin-inline-start: auto; padding-block: 5px; color: var(--muted); text-decoration: none; }
-.portfolio-status a:hover, .portfolio-status a:focus-visible { color: var(--ink); }
+.portfolio-status a, .terminal-trigger { display: inline-flex; align-items: center; gap: .45em; background: transparent; color: var(--muted); text-decoration: none; }
+.portfolio-status a { margin-inline-start: auto; padding-block: 5px; }
+.portfolio-status a:hover, .portfolio-status a:focus-visible, .terminal-trigger:hover, .terminal-trigger:focus-visible, .terminal-trigger[aria-expanded="true"] { color: var(--ink); }
 .portfolio-status a:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .status-chevron { transition: transform .2s ease; }
 .portfolio-status a:hover .status-chevron, .portfolio-status a:focus-visible .status-chevron { transform: translateX(-2px); }
@@ -140,76 +141,65 @@
 }
 
 .terminal-dock {
-  --terminal-edge: clamp(22px, 3.5vw, 46.2px);
-  --terminal-top: clamp(22px, 3vw, 39.6px);
-  --terminal-left: max(var(--terminal-edge), env(safe-area-inset-left));
-  --terminal-origin-top: max(var(--terminal-top), env(safe-area-inset-top));
-  position: fixed;
-  top: calc(var(--terminal-origin-top) + var(--terminal-viewport-y, 0px));
-  left: calc(var(--terminal-left) + var(--terminal-viewport-x, 0px));
-  z-index: 123;
+  --terminal-hit-size: 44px;
+  --terminal-panel-gap: 5px;
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 0;
+  translate: 0 -50%;
+  z-index: 1;
+  display: flex;
   font: 12px/1.55 var(--mono);
 }
 .terminal-trigger {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: .5ch;
-  min-height: 44px;
-  padding: 0 9px;
+  min-height: var(--terminal-hit-size);
+  padding: 0;
   border: 0;
-  border-radius: 5px;
-  background: var(--panel);
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--muted);
-  font: 11px/1 var(--mono);
+  font: 10px/1.45 var(--mono);
   cursor: pointer;
-  transition: background-color .18s ease, color .18s ease;
+  transition: color .18s ease;
 }
 .terminal-trigger > span { display: inline-block; transition: transform .18s ease; }
-.terminal-trigger:hover, .terminal-trigger[aria-expanded="true"] { background: var(--panel-hi); color: var(--ink); }
 .terminal-trigger:hover > span { transform: translateX(2px); }
-.terminal-dock button:focus-visible, .terminal-dock input:focus-visible, .terminal-log:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.terminal-dock button:focus-visible, .terminal-log:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .terminal-panel {
-  --terminal-panel-offset: 0px;
   position: absolute;
-  top: var(--terminal-panel-offset);
-  left: 0;
-  width: min(540px, calc(var(--terminal-visible-width, 100vw) - var(--terminal-left) - max(var(--terminal-edge), env(safe-area-inset-right))));
-  max-height: min(460px, calc(var(--terminal-visible-height, 100dvh) - var(--terminal-origin-top) - var(--terminal-panel-offset) - max(16px, env(safe-area-inset-bottom))));
+  inset-block-start: calc(100% + var(--terminal-panel-gap));
+  inset-inline-start: 0;
+  width: min(540px, calc(100vw - 2 * var(--page-inline-padding)));
+  max-height: min(460px, calc(var(--terminal-visible-height, 100dvh) - var(--page-block-start) - var(--terminal-hit-size) - var(--terminal-panel-gap) - max(16px, env(safe-area-inset-bottom))));
   display: flex;
   flex-direction: column;
-  padding: 43px 12px 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
   color: var(--soft);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
+  box-shadow: 0 8px 24px var(--raised-shadow);
 }
 .terminal-trace { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.terminal-trace rect { x: .5px; y: .5px; width: calc(100% - 1px); height: calc(100% - 1px); rx: 8px; fill: none; stroke: var(--focus); stroke-dasharray: 1; animation: terminal-trace .52s cubic-bezier(.22,.85,.24,1) both; }
+.terminal-trace rect { x: .5px; y: .5px; width: calc(100% - 1px); height: calc(100% - 1px); rx: 8px; fill: none; stroke: var(--line-strong); stroke-dasharray: 1; animation: terminal-trace .52s cubic-bezier(.22,.85,.24,1) both; }
 @keyframes terminal-trace { from { stroke-dashoffset: 1; opacity: .82; } to { stroke-dashoffset: 0; opacity: 0; } }
-.terminal-escape { position: absolute; top: 13px; right: 13px; color: var(--muted); font-size: 10px; }
 .terminal-log { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--line-strong) transparent; overflow-wrap: anywhere; }
 .terminal-entry { display: grid; gap: 3px; margin: 0 0 11px; white-space: pre-wrap; }
 .terminal-command { color: var(--ink); }
 .terminal-command > span, .terminal-input > span { color: var(--focus); }
-.terminal-suggestions { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
-.terminal-dock button:not(.terminal-trigger) { padding: 4px 7px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--soft); font: inherit; cursor: pointer; }
-.terminal-dock button:not(.terminal-trigger):hover { background: var(--hover-surface); color: var(--ink); }
-.terminal-input { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
-.terminal-input input { flex: 1; min-width: 0; min-height: 32px; padding: 4px 6px; background: var(--surface); border: 0; border-radius: 4px; color: var(--ink); caret-color: var(--focus); font: inherit; }
+.terminal-input { display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.terminal-input:focus-within { border-color: var(--line-strong); }
+.terminal-input input { flex: 1; min-width: 0; min-height: 36px; padding: 4px 0; background: transparent; border: 0; outline: none; color: var(--ink); caret-color: var(--focus); font: inherit; }
 .terminal-input input::placeholder { color: var(--muted); }
+.terminal-assist { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; color: var(--muted); font-size: 11px; }
+.terminal-suggestions { display: flex; flex-wrap: wrap; gap: 2px 6px; }
+.terminal-panel button { min-height: 28px; padding: 0 5px; border: 0; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+.terminal-panel button:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.terminal-input button { color: var(--soft); padding: 0 4px 0 9px; border-inline-start: 1px solid var(--line); }
+.terminal-escape { font-size: 10px; }
 :root:is([data-ascii-intro="pending"], [data-ascii-intro="building"]) .terminal-dock:not(:focus-within) { opacity: 0; pointer-events: none; }
-@media (max-width: 860px) {
-  .terminal-panel { --terminal-panel-offset: 44px; padding-top: 12px; }
-  .terminal-escape { display: none; }
-}
 @media (max-width: 770px) {
-  .terminal-dock { --terminal-edge: 16px; --terminal-top: 12px; }
-  .terminal-trigger { padding-inline: 8px; }
   .terminal-input input { min-height: 44px; font-size: 16px; }
-  .terminal-dock button:not(.terminal-trigger) { min-height: 44px; }
+  .terminal-input button { min-height: 44px; }
+  .terminal-suggestions button { min-height: 32px; }
+  .terminal-escape { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .terminal-trigger:hover > span { transform: none; }

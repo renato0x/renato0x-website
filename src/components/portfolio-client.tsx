@@ -1617,20 +1617,20 @@ export default function PortfolioClient() {
           <feComposite in2="SourceAlpha" operator="in" />
         </filter>
       </svg>
-      <PortfolioTerminal
-        language={language}
-        theme={theme}
-        about={currentCopy.bio}
-        projects={projects.map((project) => ({ ...project, aliases: projectAliases[project.name] }))}
-        github={githubProfile}
-        repository={portfolioRepository}
-        track={track}
-        onTheme={changeTheme}
-        onLanguage={changeLanguage}
-        onMotion={animateTerminal}
-      />
       <main className="page page-intro" aria-label={currentCopy.content} style={introStyle}>
         <header className="utility">
+          <PortfolioTerminal
+            language={language}
+            theme={theme}
+            about={currentCopy.bio}
+            projects={projects.map((project) => ({ ...project, aliases: projectAliases[project.name] }))}
+            github={githubProfile}
+            repository={portfolioRepository}
+            track={track}
+            onTheme={changeTheme}
+            onLanguage={changeLanguage}
+            onMotion={animateTerminal}
+          />
           {assembling && (
             <div className="launch-log" aria-hidden="true">
               {visibleIntroLogs.map((log) => (

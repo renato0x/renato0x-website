@@ -43,7 +43,6 @@ export function PortfolioTerminal(props: TerminalProps) {
   const historyIndex = useRef(0);
   const draft = useRef("");
   const previousFocus = useRef<HTMLElement | null>(null);
-  const dock = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
   const field = useRef<HTMLInputElement>(null);
@@ -62,6 +61,11 @@ export function PortfolioTerminal(props: TerminalProps) {
     if (next === open) return;
     if (next) {
       previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const anchor = trigger.current;
+      const bounds = anchor?.getBoundingClientRect();
+      if (bounds && (bounds.top < 0 || bounds.bottom > window.innerHeight)) {
+        anchor?.scrollIntoView({ block: "center", behavior: "instant" });
+      }
       flushSync(() => setOpen(true));
       if (panel.current) {
         panel.current.inert = false;
@@ -77,7 +81,7 @@ export function PortfolioTerminal(props: TerminalProps) {
     }
     setOpen(false);
     const returnTo = previousFocus.current;
-    if (returnTo?.isConnected && returnTo !== document.body) returnTo.focus({ preventScroll: true });
+    if (returnTo?.isConnected && returnTo !== document.body) returnTo.focus();
     else trigger.current?.focus({ preventScroll: true });
   }, [open, reduced, onMotion]);
 
@@ -100,23 +104,17 @@ export function PortfolioTerminal(props: TerminalProps) {
   }, [open, toggle]);
 
   useEffect(() => {
+    if (!open) return;
     const viewport = window.visualViewport;
-    const element = dock.current;
+    const element = panel.current;
     if (!viewport || !element) return;
     const fit = () => {
-      element.style.setProperty("--terminal-viewport-x", `${viewport.offsetLeft}px`);
-      element.style.setProperty("--terminal-viewport-y", `${viewport.offsetTop}px`);
-      element.style.setProperty("--terminal-visible-width", `${viewport.width}px`);
       element.style.setProperty("--terminal-visible-height", `${viewport.height}px`);
     };
     fit();
-    viewport.addEventListener("scroll", fit, { passive: true });
     viewport.addEventListener("resize", fit);
-    return () => {
-      viewport.removeEventListener("scroll", fit);
-      viewport.removeEventListener("resize", fit);
-    };
-  }, []);
+    return () => viewport.removeEventListener("resize", fit);
+  }, [open]);
 
   useEffect(() => {
     if (open && log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -199,7 +197,7 @@ export function PortfolioTerminal(props: TerminalProps) {
   };
 
   return (
-    <div className="terminal-dock" ref={dock}>
+    <div className="terminal-dock">
       <button
         ref={trigger}
         type="button"
@@ -229,7 +227,6 @@ export function PortfolioTerminal(props: TerminalProps) {
             }}
           >
             <svg className="terminal-trace" aria-hidden="true"><rect pathLength="1" /></svg>
-            <span className="terminal-escape" aria-hidden="true">Esc</span>
             <div className="terminal-log" ref={log} role="log" tabIndex={entries.length ? 0 : undefined} aria-label={pt ? "Histórico do terminal" : "Terminal history"}>
               {entries.map(({ id: entryId, command, output }) => (
                 <div className="terminal-entry" key={entryId}>
@@ -238,11 +235,6 @@ export function PortfolioTerminal(props: TerminalProps) {
                 </div>
               ))}
             </div>
-            {suggestions.length > 0 && (
-              <div className="terminal-suggestions" aria-label={pt ? "Sugestões" : "Suggestions"}>
-                {suggestions.map((candidate) => <button key={candidate} type="button" onClick={() => { setInput(candidate); focusInput(); }}>{candidate}</button>)}
-              </div>
-            )}
             <form className="terminal-input" onSubmit={(event) => { event.preventDefault(); submit(); }}>
               <span aria-hidden="true">&gt;</span>
               <input
@@ -272,6 +264,14 @@ export function PortfolioTerminal(props: TerminalProps) {
               />
               <button type="submit">{pt ? "Executar" : "Run"}</button>
             </form>
+            {suggestions.length > 0 && (
+              <div className="terminal-assist">
+                <div className="terminal-suggestions" role="group" aria-label={pt ? "Sugestões" : "Suggestions"}>
+                  {suggestions.map((candidate) => <button key={candidate} type="button" onClick={() => { setInput(candidate); focusInput(); }}>{candidate}</button>)}
+                </div>
+                <span className="terminal-escape" aria-hidden="true">Esc</span>
+              </div>
+            )}
           </motion.section>
         )}
       </AnimatePresence>
